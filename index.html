@@ -1,5 +1,777 @@
+<!DOCTYPE html>
 <html>
-  <body onload="console.log('hello again');">
-    <p>Hello world!</p>
-  </body>
+    <head>
+        <meta charset = "utf-8">
+        <title> Block game </title>
+        <script type = "text/javascript">
+const board_width = 10;
+const board_height = 20;
+const box_size = 18;
+const box_space = 2;
+const box_size_spaced = box_size + box_space;
+const block_size = 5 * box_size_spaced;
+
+var blocks = [
+    { id: "T", original_shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ], color: "purple" },
+    { id: "I", original_shape: [ [-1, -1], [0, -1], [1, -1], [2, -1] ], color: "cyan" },
+    { id: "S", original_shape: [ [-1, 0], [0, 0], [0, -1], [1, -1] ], color: "green" },
+    { id: "Z", original_shape: [ [-1, -1], [0, -1], [0, 0], [1, 0] ], color: "red" },
+    { id: "O", original_shape: [ [-1, -1], [0, -1], [-1, 0], [0, 0] ], color: "yellow" },
+    { id: "L", original_shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ], color: "brown" },
+    { id :"J", original_shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ], color: "blue" }
+];
+
+const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72  }
+const debug = true;
+const refresh_rate = 1000 / 30; // 30 FPS
+
+const game = {
+    timer: null,
+    state: null,
+    states: null,
+    next_piece: null,
+    mem_piece: null,
+    is_new_personal_best: null,
+    start_time: null,
+    end_time: null,
+    time_timer: null,
+    
+    init: function() {
+        game.states = { not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
+        for (const [id, state] of Object.entries(game.states)) state.id = id;
+        game.states.play.handlers = [
+            { filter: (e) => e.key === action_keys.p, action: game.pause, state: game.states.paused },
+            { filter: (e) => e.key === action_keys.space, action: game.drop },
+            { filter: (e) => e.key === action_keys.left, action: game.move_left },
+            { filter: (e) => e.key === action_keys.right, action: game.move_right },
+            { filter: (e) => e.key === action_keys.up, action: game.rotate_cw },
+            { filter: (e) => e.key === action_keys.down, action: game.rotate_ccw },
+            { filter: (e) => e.key === action_keys.h, action: game.hold_piece }
+        ];
+        if (debug) {
+            game.states.play.handlers.push(
+                { filter: (e) => { return e.key === action_keys.w; }, action: () => inc("level", 1) });
+            game.states.play.handlers.push(
+                { filter: (e) => { return e.key === action_keys.s; }, action: () => inc("level", -1) });
+        }
+
+        game.states.paused.handlers = [
+            { filter: (e) => e.class === "key_press", action: game.resume, state: game.states.play }
+        ];
+        game.states.confirm_new_game.handlers = [
+            { filter: (e) => e.class === "key_press", action: game.restart_new_game, state: game.states.play }
+        ];
+        game.state = game.states.not_started;
+        msg.log("Initial game state is ", game.state.id);
+    },
+
+    handle_event: function(event) {
+        const handlers = game.state.handlers;
+        if (game.state.handlers) for (const h of game.state.handlers) {
+            if (h.filter(event)) {
+                if (h.action) h.action();
+                if (h.state) {
+                    msg.log("Entering state ", h.state.id);
+                    game.state = h.state;
+                }                    
+                return;
+            }
+        }
+        msg.log("State is ", game.state.id);
+        msg.log_json("WARN! None of the handlers matched for ", event);
+    },
+
+    start_game: function() {
+        board.init();
+        set("score", 0);
+        set("level", 1);
+        set("lines", 0);
+        game.end_time = null;
+        game.start_time = Date.now();
+        game.time_timer = window.setInterval(msg.refresh_time, 1000);
+        game.is_new_personal_best = false;
+        game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
+        game.clear_hold_piece();
+        game.create_new_piece();
+        game.state = game.states.play;
+        game.timer = window.setInterval(game.main_loop, refresh_rate);
+    },
+
+    restart_new_game: function() {
+        game.state = game.states.not_started;
+        msg.clear_messages();
+        game.start_game();
+    },
+
+    hold_piece: function() {
+        if (game.mem_piece) {
+            [ piece.current_piece, game.mem_piece ] = [ game.mem_piece, piece.current_piece ];
+            piece.draw_blocks(piece.current_piece, piece.piece_div);
+        } else {
+            piece.piece_div.parentNode.removeChild(piece.piece_div);
+            game.mem_piece = piece.current_piece;
+            game.create_new_piece();
+        }
+        game.mem_piece.shape = game.mem_piece.original_shape; // reset orientation
+        piece.draw_piece(game.mem_piece, "mem-piece", 10, 20);
+    },
+
+    clear_hold_piece: function() {
+        if (game.mem_piece) {
+            const div = document.getElementById("mem-piece");
+            while (div.lastElementChild) div.removeChild(div.lastElementChild);
+            game.mem_piece = null;
+        }
+    },
+
+    create_new_piece: function() {
+        const current_piece = this.next_piece;
+        this.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
+        piece.draw_piece(this.next_piece, "next-piece", 10, 20);  
+        return piece.create_new(current_piece);
+    },
+
+    game_over: function() {
+        window.clearInterval(this.timer); this.timer = null;
+        window.clearInterval(this.time_timer); this.time_timer = null;
+        this.end_time = Date.now();
+        this.state = game.states.game_over;
+        score_board.update_and_show_current_stats();
+        msg.send(["Game Over!"], "", 2000, () => {
+            this.state = game.states.confirm_new_game;
+            msg.send(["New game?"], "", 0);
+        });
+    },
+
+    pause: function() {
+        this.pause_message = msg.send(["Paused"], "black", 0);
+    },
+
+    resume: function() {
+        msg.clear_messages();
+        this.pause_message = null;
+    },
+
+    freeze_current_piece: function() {
+        board.mark_position_to_board(piece.screen_x, piece.screen_y, piece.current_piece);
+    },
+
+    clear_full_lines: function(lines) {
+        lines.forEach((l) => board.remove_line(l));
+        board.animate_drop(lines, 0, box_size_spaced, 4, refresh_rate);
+    },
+
+    move_left: () => piece.move_left_or_right(-1), 
+    move_right: () => piece.move_left_or_right(1), 
+    drop: () => piece.drop(),
+    rotate_cw: () => piece.rotate(1),
+    rotate_ccw: () => piece.rotate(-1),
+
+    main_loop: function() {
+        if (game.state != game.states.play) return;
+        const blocked = !piece.move_down_at_most(0.4 * Number(get("level")));
+        if (blocked) {
+            game.freeze_current_piece();
+            inc("score", (Number(get("level")) * piece.current_piece.shape.length));
+            const lines = board.find_full_lines();
+            if (lines.length > 0) {
+                inc("score", Math.floor(Math.pow(2, lines.length - 1) * 100));
+                inc("lines", lines.length);
+                inc("lines_" + lines.length, 1);
+                if (lines.length == 4) msg.send(["Nice, 4 rows!"], "", 1000);
+                if (Number(get("lines")) / 10 > Number(get("level"))) {
+                    inc("level", 1);
+                    msg.send(["Level up!"], "", 1000)
+                }
+                game.clear_full_lines(lines);
+            }
+            if (Number(get("score")) > score_board.ot_stats.score) {
+                if (!game.is_new_personal_best) {
+                    if (score_board.ot_stats.score > 0) msg.send(["New personal best!"], "", 2000);
+                    game.is_new_personal_best = true;
+                }
+            }
+            const room_for_new_piece = game.create_new_piece();
+            if (!room_for_new_piece) game.game_over();
+        }
+    }
+}
+
+const msg = {
+
+    queue: [],
+    current_entry: null,
+
+    init: function() {
+        const board_div = document.getElementById("board");
+        const div = document.getElementById("message");
+        div.style.top = board_div.offsetTop + "px";
+        div.style.left = board_div.offsetLeft + "px";
+        div.style.width = board_div.style.width;
+        div.style.height = board_div.style.height;
+
+        document.getElementById("help").innerHTML += msg.help_text();
+
+        window.setInterval(msg.draw_next_message, 100);
+    },  
+
+    send: function(messages, type, time, after_action) {
+        for (var i = 0; i < messages.length - 1; ++i) {
+            this.queue.push({ message: messages[i], type, time });
+        }
+        const last_entry = { message: messages[i], type, time, after_action };
+        msg.queue.push(last_entry);
+        return last_entry;
+    },
+
+    draw_next_message: function() {
+        if (msg.queue.length == 0 || msg.current_entry) return;
+        msg.current_entry = msg.queue.shift();
+        const div = document.getElementById("message");
+        div.className = "message " + msg.current_entry.type;
+        div.style.visibility = "visible";
+        div.innerText = msg.current_entry.message;
+        if (msg.current_entry.time !== 0) setTimeout(msg.clear_message, msg.current_entry.time);
+    },
+
+    clear_message: function() {
+        const entry = msg.current_entry;
+        msg.current_entry = null;  
+        if (entry && entry.after_action) entry.after_action();
+        const div = document.getElementById("message");
+        div.style.visibility = "hidden";
+        div.innerText = "";
+    },
+
+    clear_messages: function() {
+        msg.queue = [];
+        msg.clear_message();
+    },
+
+    help_text: function() {
+        const text = [ "Left/Right: move", "Up/Down: rotate", "Space: drop", "H: hold", "P: pause" ];
+        return text.join("<br/>"); 
+    },
+
+    refresh_time: function() {
+        document.getElementById("time").innerText = print_duration(Date.now() - game.start_time);
+    },
+
+    log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
+    log_json: debug ? (msg, json) => { console.log(msg + JSON.stringify(json)); return json; } : (msg, json) => json
+}
+
+print_duration = function(msec) {
+    var sec = Math.floor(msec / 1000);
+    var min = Math.floor(sec / 60); sec -= (min * 60);
+    var hour = Math.floor(min / 60); min -= (hour * 60);
+    const h = hour > 0 ? hour + ":" : "";
+    const mm = min < 10 ? "0" + min : min;
+    const ss = sec < 10 ? "0" + sec : sec;
+    return h + mm + ":" + ss;
+}
+
+parse_duration = function(str) {
+    const arr = str.split(":");
+    var time = 0; var i = 0;
+    if (arr.length > 2) time += Number(arr[i++]) * 60 * 60;  
+    if (arr.length > 1) time += Number(arr[i++]) * 60;
+    return (time + Number(arr[i])) * 1000;
+}
+
+const score_board = {
+    item_name: "stats-1.0",
+    fields: [ "time", "level", "score", "lines", "lines_4", "lines_3", "lines_2", "lines_1" ],
+    initial_overall_stats:
+        { games: 0, time: 0, first_game: Date.now(), score: 0, level: 0, lines: 0, lines_4: 0},
+    ot_stats: null,
+
+    init: function() {
+        const str = localStorage.getItem(this.item_name);
+        this.ot_stats = str ? JSON.parse(str) : this.initial_overall_stats;
+        this.show_overall_stats();
+    },
+
+    update_and_show_current_stats: function(stats = {}) {
+        for (field of this.fields) stats[field] = get(field);
+        msg.log_json("Stats ", stats);
+        for (key of Object.keys(stats)) set("t-" + key, stats[key]); // show current
+        score_board.update_overall_stats(stats); // show overall
+    },
+
+    update_overall_stats: function(stats) {
+        const ot = this.ot_stats;
+        ot.games += 1;
+        if (Number(stats.score) > ot.score) ot.score = Number(stats.score);
+        if (Number(stats.level) > ot.level) ot.level = Number(stats.level);
+        ot.lines += Number(stats.lines);
+        ot.lines_4 += Number(stats.lines_4);
+        ot.time += parse_duration(stats.time);
+        localStorage.setItem(this.item_name, msg.log("Overall stats: ", JSON.stringify(ot)));
+        this.show_overall_stats();
+    },
+
+    show_overall_stats: function() {
+        const ot = { ...this.ot_stats };
+        // format some fields
+        ot.first_game = Math.floor((Date.now() - ot.first_game) / 1000 / 60 / 60 / 24) + " days ago";
+        ot.time = print_duration(ot.time);
+        ot.lines = Math.floor(ot.lines / ot.games);
+        ot.lines_4 = Math.floor(ot.lines_4 / ot.games);
+
+        set("best", ot.score);
+        for (key of Object.keys(ot)) set("ot-" + key, ot[key]);        
+    }
+}
+
+const board = {
+
+    matrix: [],
+    board_div: null,
+
+    init: function() {
+        this.board_div = document.getElementById("board");
+        this.board_div.innerHTML = "";
+        this.board_div.style.width = (box_size_spaced * board_width) + "px";
+        this.board_div.style.height = (box_size_spaced * board_height) + "px";
+
+        // 1 col outside left and 1 col outside right 
+        for (var i = 0; i < board_width + 2; ++i) {
+            this.matrix[i] = [];
+            var val = 0;
+            if (i == 0 || i == board_width + 1) val = 1; // left and right borders
+            var j = 0;
+            // 4 rows above screen and 1 below screen
+            for (j = 0; j < board_height + 3; ++j) {
+                this.matrix[i][j] = val;
+            }
+            this.matrix[i][j] = 1; // bottom border
+        }
+
+        box_template = document.createElement("div");
+        box_template.className = "box";
+        box_template.style.width = box_size + "px";
+        box_template.style.height = box_size + "px";
+    },
+
+    find_full_lines: function() {
+        var full_lines = [];
+        for (var y = 4; y < this.matrix[0].length - 1; ++y) {
+            var full = true;
+            for (var x = 1; x < this.matrix.length - 1; ++x) {
+                if (this.matrix[x][y] == 0) { full = false; break }
+            }
+            if (full) full_lines.push(y);
+        }   
+        return full_lines;
+    },
+
+    remove_line: function(y) {
+        for (var x = 1; x < this.matrix.length - 1; ++x) {
+            var box_div = this.matrix[x][y];
+            box_div.parentElement.removeChild(box_div);
+            this.matrix[x][y] = 0;
+        }
+    },
+
+    drop_above: function(y) {
+        for (var x = 1; x < this.matrix.length - 1; ++x) {
+            for (var yy = y - 1; yy > 0; --yy) {
+                var box2 = this.matrix[x][yy];
+                this.matrix[x][yy + 1] = box2;
+            }
+        }
+    },
+
+    animate_drop: function(lines, current, total, step, delay) {
+        lines.forEach((y) => {
+            for (var x = 1; x < this.matrix.length - 1; ++x) {
+                for (var yy = y - 1; yy > 0; --yy) {
+                    var box2 = this.matrix[x][yy];
+                    if (box2.my_props) {
+                        box2.my_props.top += step;
+                        box2.style.top = box2.my_props.top + "px";
+                    }   
+                }
+            }
+        });
+        current += step;
+        if (current < total) {
+            setTimeout(() => board.animate_drop(lines, current, total, step, delay), delay);
+        } else {
+            lines.forEach((y) => board.drop_above(y));
+        }
+
+    },
+
+    position_in_matrix: function(x, y) {
+        return [ Math.floor(x / box_size_spaced) + 1, Math.floor(y / box_size_spaced) + 4 ];
+    },
+
+    overlap: function(shape, screen_x, screen_y) {
+        const pos = this.position_in_matrix(screen_x, screen_y);
+        for (i = 0; i < shape.length; ++i) {
+            const x = pos[0] + shape[i][0] + 2;
+            const y = pos[1] + shape[i][1] + 2;
+            if (x < 0 || x >= this.matrix.length || y < 0 || y >= this.matrix[x].length) continue; 
+            if (this.matrix[x][y] != 0) return true;
+        }
+        return false;
+    },
+
+    mark_position_to_board: function(screen_x, screen_y, current_piece) {
+        const position = this.position_in_matrix(screen_x, screen_y);
+        for (i = 0; i < current_piece.shape.length; ++i) {
+            const x = position[0] + current_piece.shape[i][0] + 2;
+            const y = position[1] + current_piece.shape[i][1] + 2;
+            this.matrix[x][y] = current_piece.divs[i];
+        }
+    }
+}
+
+const piece = {
+    piece_div: null,
+    screen_x: null,
+    screen_y: null,
+    current_piece: null,
+
+    create_new: function(piece) {
+        this.piece_div = document.createElement( "div" );
+        this.piece_div.className = "piece";
+        this.current_piece = piece;
+        this.screen_x = ((board_width / 2) - 3) * box_size_spaced;
+        this.screen_y = -1 * box_size_spaced;
+        if (!piece.shape) piece.shape = piece.original_shape;
+        // prevent overlapping on screen in case half of the piece would be visible
+        const has_room = !board.overlap(this.current_piece.shape, this.screen_x, this.screen_y - 1)
+        const has_room2 = !board.overlap(this.current_piece.shape, this.screen_x, this.screen_y)
+        if (has_room) {
+            document.getElementById("board").appendChild( this.piece_div );
+            this.draw_blocks(this.current_piece, this.piece_div);
+            this.move_and_draw(0, 0);
+        }
+        return has_room2;
+    },
+
+    draw_piece: function(current_piece, div_id, left = 0, top = 0) {
+        const div = document.getElementById(div_id);
+        const ll = div.parentNode.offsetLeft + left;
+        const tt = div.parentNode.offsetTop + top;
+        piece.draw_blocks(current_piece, div, ll, tt);
+        div.style.left = ll + "px";
+        div.style.top = tt + "px";
+    },
+
+    draw_blocks: function(piece, piece_div, left = 0, top = 0) {
+        while (piece_div.lastElementChild) {
+            piece_div.removeChild(piece_div.lastElementChild);
+        }
+        var i = 0;
+        piece.divs = [];
+        if (!piece.shape) piece.shape = piece.original_shape;
+        piece.shape.forEach(b => {
+            var box = box_template.cloneNode(true);
+            box.style.backgroundColor = piece.color;
+            box.my_props = {};
+            box.my_props.left = ((block_size / 2) - (box_size_spaced / 2) + (box_size_spaced * b[0])) + left;
+            box.my_props.top = ((block_size / 2) - (box_size_spaced / 2) + (box_size_spaced * b[1])) + top;
+            box.style.left = box.my_props.left + "px";
+            box.style.top = box.my_props.top + "px";
+            piece_div.appendChild(box);
+            piece.divs[i++] = box;
+        });
+    },
+
+    rotate: function(direction) {
+        var rotated;
+        if (direction === -1) {
+            rotated = this.current_piece.shape.map( b => [b[1], -1 * b[0]]);
+        } else {
+            rotated = this.current_piece.shape.map( b => [-1 * b[1], b[0]]);
+        }
+
+        // try first on current pos, then 1 right, 2 right, .., 1 left, 2 left, ...
+        var can_rotate = false;
+        const tries = [ 0, 1, -1, 2, -2 ];
+        for (var i = 0; i < tries.length; ++i) {
+            var x = this.screen_x;
+            if (tries[i] != 0) this.move_left_or_right(tries[i]);
+            if (!board.overlap(rotated, this.screen_x, this.screen_y)) {
+                can_rotate = true; break;
+            }
+            if (tries[i] != 0) this.move_and_draw(x - this.screen_x, 0); // cancel move
+        }
+        if (can_rotate) {
+            this.current_piece.shape = rotated;
+            this.draw_blocks(this.current_piece, this.piece_div);
+        }
+    },
+
+    can_move: function(dx, dy) {
+        const cur_pos = board.position_in_matrix(this.screen_x, this.screen_y);
+        const new_pos = board.position_in_matrix(this.screen_x + dx, this.screen_y + dy);
+        if (new_pos[0] != cur_pos[0] || new_pos[1] != cur_pos[1]) {
+            return !board.overlap(this.current_piece.shape, this.screen_x + dx, this.screen_y + dy);
+        }
+        return true; // not moved enough, no point checking overlap
+    },
+
+    move_and_draw: function(dx, dy) {
+        this.screen_x += dx;
+        this.screen_y += dy;
+
+        this.piece_div.style.width = block_size + "px";
+        this.piece_div.style.height = block_size + "px";
+        this.piece_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y) + "px";
+        this.piece_div.style.left = (board.board_div.offsetLeft + this.screen_x) + "px";
+    },
+
+    move_left_or_right: function(dx) {
+        if (this.can_move(dx * box_size_spaced, 0)) {
+            this.move_and_draw(dx * box_size_spaced, 0);
+        }
+    },
+
+    move_down_at_most: function(dy) {
+        if (this.can_move(0, dy)) {
+            this.move_and_draw(0, dy);
+            return true;
+        } else {
+            // try with remaining portion
+            dy = box_size_spaced - ((this.screen_y + (4 * box_size_spaced)) % box_size_spaced) - 1;
+            if (dy < 1) return false;
+            if (this.can_move(0, dy)) {
+                this.move_and_draw(0, dy);
+                return true;
+            }
+        }
+        return false;
+    },
+
+    drop: function() {
+        while (piece.move_down_at_most(box_size_spaced)) {
+        }
+    }
+}
+
+// helpers to access values shown on page
+const set = function(id, value) { if (document.getElementById(id)) document.getElementById(id).innerText = value; }
+const inc = function(id, value) { set(id, Number(get(id)) + value); }
+const get = function(id) { return document.getElementById(id) ? document.getElementById(id).innerText : null; }
+
+const init_page = function() {
+    score_board.init();
+    game.init();
+    board.init();
+    msg.init();
+
+    const press = function(pressed) {
+        //console.log("Pressed " + pressed.keyCode);
+        if (Object.values(action_keys).indexOf(pressed.keyCode) < 0) return;
+        pressed.preventDefault();
+        game.handle_event({ class: "key_press", key: pressed.keyCode });
+    }
+    document.addEventListener( "keydown", press, false );
+
+    msg.send(["3", "2", "1"], "", 500);
+    msg.send(["Play!"], "", 1000, game.start_game);
+}
+        </script>
+        <style>
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background-color: rgb(153, 157, 144);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: small;
+}
+
+a {
+    color:white;
+}
+
+.stats {
+    padding: 10px;
+    margin-left: 20px;
+}
+
+.bg {
+    background-color: rgb(153, 157, 144);
+    color: black;
+}
+
+.container {
+    margin: 10px;
+    padding: 10px;
+    clear: both;
+    max-width: 800px;
+}
+
+#header {
+    background-color: grey;
+    text-align: right;
+    color: white;
+    padding: 5px;
+}
+
+#footer {
+    background-color: grey;
+    text-align: center;
+    color: white;
+    padding: 10px;
+}
+
+#board {
+    margin: 10px;
+    text-align: center;
+    float: left;
+}
+
+.score-board {
+    padding: 5px;
+    text-align: center;
+    float: left;
+}
+
+.score-table .left {
+    text-align: right;
+}
+
+.score-table-right {
+    width: 20px;
+}
+
+.infoline {
+    width: 100px;
+    float: initial;
+    margin: 5px;
+    padding: 10px;
+}
+
+.next {
+    height: 80px;
+}
+
+.mem {
+    height: 120px;
+}
+
+.help-inner {
+    width: 100px;
+    font-size: small;
+    display: inline-block;
+    align-self: flex-end;
+    text-align: center;
+}
+
+.help {
+    height: 100%;
+    padding-top: 20px;
+    display: flex;
+}
+
+.piece {
+    background-color: transparent;
+    position: absolute;
+}
+
+.box {
+    position: absolute;
+    border-radius: 2px;
+}
+
+.message {
+    z-index: 99;
+    visibility: hidden;
+    background-color: transparent;
+    color: white;
+    font-weight: bolder;
+    font-size: larger;
+    position: absolute;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.black {
+    background-color: rgba(0, 0, 0, 0.789);
+    color: white;
+}
+        </style>
+    </head>
+    <body onload="init_page()">
+        <div id="header">
+        </div>
+        <div id="main">
+            <div id="message" class="message black"></div>
+            <div class="score-board">
+                <div class="infoline black">Score:<br/> <span id="score">0</span></div>
+                <div class="infoline black">Time:<br/> <span id="time">00:00</span></div>
+                <div class="infoline black">Level: <span id="level">0</span></div>
+                <div class="infoline black">
+                    <table class="score-table"><tbody>  
+                        <tr><td>Lines:</td> <td id="lines">0</td></tr>
+                        <tr><td class="left">4x:</td><td id="lines_4">0</td></tr>
+                        <tr><td class="left">3x:</td><td id="lines_3">0</td></tr>
+                        <tr><td class="left">2x:</td><td id="lines_2">0</td></tr>
+                        <tr><td class="left">1x:</td><td id="lines_1">0</td></tr>
+                    </tbody></table>
+                </div>
+                <div class="infoline next black">Hold:<br/> <span id="mem-piece"></span></div>
+            </div>
+            <div id="board" class="black"></div>
+            <div class="score-board">
+                <div class="infoline black">Best:<br/> <span id="best">0</span></div>
+                <div class="infoline next black">Next piece:<br/> <span id="next-piece"></span></div>
+                <div class="infoline help"><div class="help-inner" id="help">
+                    <h3>Usage:</h3>
+                </div></div>
+            </div>
+        </div>
+        <div class="container">
+            <h1>Block game</h1>
+            <p>This is a free time hobby project for myself. I was tired of ads in Tetris
+                games and decided to make my own minimalistic game.</p>
+            <p>This game is implemented entirely with JavaScript and HTML without any
+                additional libraries.</p>
+        </div>
+        <div class="container">
+            <h2>Statistics</h2>
+            <h3>Previous game</h3>
+            <p>Here are the statistics from your previous game:</p>
+            <table class="stats black">
+                <colgroup><col/><col style="width:100px;"/></colgroup>
+                <tbody>  
+                    <tr><td>Total time:</td><td id="t-time"></td></tr>
+                    <tr><td>Score:</td><td id="t-score"></td></tr>
+                    <tr><td>Highest level:</td><td id="t-level"></td></tr>
+                    <tr><td>4-line combos:</td><td id="t-lines_4"></td></tr>
+                    <tr><td>3-line combos:</td><td id="t-lines_3"></td></tr>
+                    <tr><td>2-line combos:</td><td id="t-lines_2"></td></tr>
+                    <tr><td>Single lines:</td><td id="t-lines_1"></td></tr>
+                    <tr><td>Total lines:</td><td id="t-lines"></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="container">
+            <h3>Overall statistics</h2>
+            <p>Here are your overall statistics:</p>
+            <table class="stats black">
+                <colgroup><col/><col style="width:100px;"/></colgroup>
+                <tbody>  
+                    <tr><td>Games played:</td><td id="ot-games"></td></tr>
+                    <tr><td>First game played:</td><td id="ot-first_game"></td></tr>
+                    <tr><td>Time spend:</td><td id="ot-time"></td></tr>
+                    <tr><td>Best score:</td><td id="ot-score"></td></tr>
+                    <tr><td>Highest level:</td><td id="ot-level"></td></tr>
+                    <tr><td>Average 4 row clears:</td><td id="ot-lines_4"></td></tr>
+                </tbody>    
+            </table>
+        </div>
+        <div id="footer">
+            2023 &copy; <a href="">T. Koivula</a>
+        </div>
+    </body>
 </html>
