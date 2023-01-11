@@ -583,6 +583,7 @@ const init_page = function() {
             start_x = touches[0].clientX;
         }
     }
+    const swipe_limit = 5;
     const touch_end = function(e) {
         console.log("Touch end " + e);
         const end_x = e.changedTouches[0].clientX;
