@@ -617,9 +617,9 @@ const init_page = function() {
             e.preventDefault();
         }
     }
-    document.addEventListener('touchstart', touch_start, { passive: true });
-    document.addEventListener('touchmove', touch_move, { passive: true });
-    document.addEventListener('touchend', touch_end), { passive: true };
+    document.addEventListener('touchstart', touch_start, { passive: false });
+    document.addEventListener('touchmove', touch_move, { passive: false });
+    document.addEventListener('touchend', touch_end), { passive: false };
     /*
     element.addEventListener('pointerdown', listener)
     element.addEventListener('pointermove', listener)
