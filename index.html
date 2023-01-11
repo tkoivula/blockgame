@@ -617,10 +617,9 @@ const init_page = function() {
             e.preventDefault();
         }
     }
-    const param = Modernizr.passiveeventlisteners ? { passive: true } : false;
-    document.addEventListener('touchstart', touch_start, param);
-    document.addEventListener('touchmove', touch_move, param);
-    document.addEventListener('touchend', touch_end), param;
+    document.addEventListener('touchstart', touch_start, { passive: true });
+    document.addEventListener('touchmove', touch_move, { passive: true });
+    document.addEventListener('touchend', touch_end), { passive: true };
     /*
     element.addEventListener('pointerdown', listener)
     element.addEventListener('pointermove', listener)
