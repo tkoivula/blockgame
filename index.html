@@ -598,10 +598,6 @@ const init_page = function() {
             game.handle_event({ class: "touch", direction: "swipe_left" });
             e.preventDefault();
         }
-        if (start_y < end_y - swipe_limit) { 
-            game.handle_event({ class: "touch", direction: "swipe_down" });
-            e.preventDefault();
-        }
     }
     const touch_end = function(e) {
         console.log("Touch end " + e);
@@ -621,9 +617,10 @@ const init_page = function() {
             e.preventDefault();
         }
     }
-    document.addEventListener('touchstart', touch_start);
-    document.addEventListener('touchmove', touch_move);
-    document.addEventListener('touchend', touch_end);
+    const param = Modernizr.passiveeventlisteners ? { passive: true } : false;
+    document.addEventListener('touchstart', touch_start, param);
+    document.addEventListener('touchmove', touch_move, param);
+    document.addEventListener('touchend', touch_end), param;
     /*
     element.addEventListener('pointerdown', listener)
     element.addEventListener('pointermove', listener)
