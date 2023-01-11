@@ -47,6 +47,7 @@ const game = {
             { filter: (e) => e.direction === "swipe_left", action: game.move_left },
             { filter: (e) => e.key === action_keys.right, action: game.move_right },
             { filter: (e) => e.direction === "swipe_right", action: game.move_right },
+            { filter: (e) => e.direction === "move", action: function(e) { game.move_pixels(e.value); } },
             { filter: (e) => e.key === action_keys.up, action: game.rotate_cw },
             { filter: (e) => e.direction === "point", action: game.rotate_cw },
             { filter: (e) => e.key === action_keys.down, action: game.rotate_ccw },
@@ -73,7 +74,7 @@ const game = {
         const handlers = game.state.handlers;
         if (game.state.handlers) for (const h of game.state.handlers) {
             if (h.filter(event)) {
-                if (h.action) h.action();
+                if (h.action) h.action(event);
                 if (h.state) {
                     msg.log("Entering state ", h.state.id);
                     game.state = h.state;
@@ -165,6 +166,11 @@ const game = {
         board.animate_drop(lines, 0, box_size_spaced, 4, refresh_rate);
     },
 
+    move_pixels: (px) => { 
+        const round = px > 0 ? Math.floor : Math.ceil;
+        //const dx = msg.log("Moving ", round(px / box_size_spaced));
+        if (px > 0) dx = 1; if (px < 0) dx = -1;
+        piece.move_left_or_right(dx); },
     move_left: () => piece.move_left_or_right(-1), 
     move_right: () => piece.move_left_or_right(1), 
     drop: () => piece.drop(),
@@ -581,50 +587,93 @@ const init_page = function() {
         console.log("Touch start " + e);
         const { touches } = e;
         if (touches && touches.length == 1) {
-            start_x = touches[0].clientX;
-            start_y = touches[0].clientY;
+            mouse_x = touches[0].clientX;
+            mouse_y = touches[0].clientY;
             e.preventDefault();
         }
     }
-    const swipe_limit = 5;
+    const swipe_limit = 20;
     const touch_move = function(e) {
         console.log("Touch end " + e);
-        const end_x = e.touches[0].clientX;
-        const end_y = e.touches[0].clientY;
-        if (start_x < end_x - swipe_limit) { 
-            game.handle_event({ class: "touch", direction: "swipe_right" });
+        const x = e.touches[0].clientX;
+        const y = e.touches[0].clientY;
+        if (!move && mouse_y < y - swipe_limit) {
+            game.handle_event({ class: "touch", direction: "swipe_down" });
+            drop = true; // prevent rotate if drop
             e.preventDefault();
-        } else if (start_x > end_x + swipe_limit) {
-            game.handle_event({ class: "touch", direction: "swipe_left" });
+            return;
+        }
+        if (Math.abs(x - mouse_x) > swipe_limit) { 
+            msg.log("Touch moved " + (x - mouse_x));
+            game.handle_event({ class: "touch", direction: "move", value: x - mouse_x });
+            mouse_x = x;
+            move = true; // prevent other mouse actions if moving left/right
             e.preventDefault();
         }
     }
     const touch_end = function(e) {
         console.log("Touch end " + e);
-        const end_x = e.changedTouches[0].clientX;
-        const end_y = e.changedTouches[0].clientY;
-        if (start_x < end_x - swipe_limit) { 
-            game.handle_event({ class: "touch", direction: "swipe_right" });
-            e.preventDefault();
-        } else if (start_x > end_x + swipe_limit) {
-            game.handle_event({ class: "touch", direction: "swipe_left" });
-            e.preventDefault();
-        } else if (start_y < end_y - swipe_limit) { 
-            game.handle_event({ class: "touch", direction: "swipe_down" });
-            e.preventDefault();
-        } else {
-            game.handle_event({ class: "touch", direction: "point"})
+        mouse_pressed = false;
+        mouse_y = null;
+        mouse_x = null;
+        if (!move && !drop) {
+            game.handle_event({ class:"touch", direction:"point"});
             e.preventDefault();
         }
+        move = false;
+        drop = false;
+
     }
+    mouse_pressed = false;
+    const mouse_down = function(e) {
+        if (mouse_pressed) return;
+        mouse_pressed = true;
+        mouse_y = e.screenY;
+        mouse_x = e.screenX;
+        move = false;
+        e.preventDefault();
+    }
+    const mouse_up = function(e) {
+        mouse_pressed = false;
+        mouse_y = null;
+        mouse_x = null;
+        if (!move && !drop) {
+            game.handle_event({ class:"touch", direction:"point"});
+            e.preventDefault();
+        }
+        move = false;
+        drop = false;
+    }
+    mouse_x = null;
+    mouse_y = null;
+    move = false; drop = false;
+    const mouse_move = function(e) {
+        if (!mouse_pressed) return;
+        e.preventDefault();
+        console.log("Mouse move " + e);
+        const x = e.screenX;
+        const y = e.screenY;
+        if (!move && mouse_y < y - swipe_limit) {
+            game.handle_event({ class: "touch", direction: "swipe_down" });
+            drop = true; // prevent rotate if drop
+            mouse_up();
+            return;
+        }
+        if (Math.abs(x - mouse_x) > swipe_limit) { 
+            msg.log("Mouse moved " + (x - mouse_x));
+            game.handle_event({ class: "touch", direction: "move", value: x - mouse_x });
+            mouse_x = x;
+            move = true; // prevent other mouse actions if moving left/right
+        }
+    }
+    
     document.addEventListener('touchstart', touch_start, { passive: false });
     document.addEventListener('touchmove', touch_move, { passive: false });
-    document.addEventListener('touchend', touch_end), { passive: false };
-    /*
-    element.addEventListener('pointerdown', listener)
-    element.addEventListener('pointermove', listener)
-    element.addEventListener('pointerup', listener)
-    */
+    document.addEventListener('touchend', touch_end, { passive: false });
+
+    document.addEventListener('pointerdown', mouse_down);
+    document.addEventListener('pointermove', mouse_move);
+    document.addEventListener('pointerup', mouse_up);
    
     msg.send(["3", "2", "1"], "", 500);
     msg.send(["Play!"], "", 1000, game.start_game);
