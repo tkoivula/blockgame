@@ -42,6 +42,7 @@ const game = {
         game.states.play.handlers = [
             { filter: (e) => e.key === action_keys.p, action: game.pause, state: game.states.paused },
             { filter: (e) => e.key === action_keys.space, action: game.drop },
+            { filter: (e) => e.direction === "swipe_down", action: game.drop },
             { filter: (e) => e.key === action_keys.left, action: game.move_left },
             { filter: (e) => e.direction === "swipe_left", action: game.move_left },
             { filter: (e) => e.key === action_keys.right, action: game.move_right },
@@ -581,21 +582,47 @@ const init_page = function() {
         const { touches } = e;
         if (touches && touches.length == 1) {
             start_x = touches[0].clientX;
+            start_y = touches[0].clientY;
+            e.preventDefault();
         }
     }
     const swipe_limit = 5;
+    const touch_move = function(e) {
+        console.log("Touch end " + e);
+        const end_x = e.touches[0].clientX;
+        const end_y = e.touches[0].clientY;
+        if (start_x < end_x - swipe_limit) { 
+            game.handle_event({ class: "touch", direction: "swipe_right" });
+            e.preventDefault();
+        } else if (start_x > end_x + swipe_limit) {
+            game.handle_event({ class: "touch", direction: "swipe_left" });
+            e.preventDefault();
+        }
+        if (start_y < end_y - swipe_limit) { 
+            game.handle_event({ class: "touch", direction: "swipe_down" });
+            e.preventDefault();
+        }
+    }
     const touch_end = function(e) {
         console.log("Touch end " + e);
         const end_x = e.changedTouches[0].clientX;
+        const end_y = e.changedTouches[0].clientY;
         if (start_x < end_x - swipe_limit) { 
             game.handle_event({ class: "touch", direction: "swipe_right" });
+            e.preventDefault();
         } else if (start_x > end_x + swipe_limit) {
             game.handle_event({ class: "touch", direction: "swipe_left" });
+            e.preventDefault();
+        } else if (start_y < end_y - swipe_limit) { 
+            game.handle_event({ class: "touch", direction: "swipe_down" });
+            e.preventDefault();
         } else {
-            game.handle_event({ class: "touch", type: "point"})
+            game.handle_event({ class: "touch", direction: "point"})
+            e.preventDefault();
         }
     }
     document.addEventListener('touchstart', touch_start);
+    document.addEventListener('touchmove', touch_move);
     document.addEventListener('touchend', touch_end);
     /*
     element.addEventListener('pointerdown', listener)
