@@ -7,7 +7,7 @@
         <script type = "text/javascript">
 const board_width = 10;
 const board_height = 20;
-const box_size = 20;
+const box_size = 22;
 const box_space = 2;
 const box_size_spaced = box_size + box_space;
 const block_size = 5 * box_size_spaced;
@@ -729,7 +729,8 @@ a {
 }
 
 #board {
-    margin: 10px;
+    padding: 5px;
+    margin-right: 10px;
     text-align: center;
     float: left;
 }
@@ -757,7 +758,7 @@ a {
 }
 
 .infoline {
-    width: 90px;
+    width: 80px;
     float: initial;
     margin: 5px;
     padding: 5px;
@@ -793,6 +794,13 @@ a {
 .box {
     position: absolute;
     border-radius: 2px;
+}
+
+.button {
+    border-radius: 4px;
+    padding: 3px;
+    background-color: green;
+    border: 2px solid darkgreen;
 }
 
 .message {
@@ -839,8 +847,8 @@ a {
                     Hold:<br/><span id="mem-piece"></span>
                 </div>
                 <div class="infoline">
-                    <button onclick="game.handle_event({class:'button', key:'pause' });">Pause</button><br/>
-                    <button onclick="game.handle_event({class:'button', key:'hold' });">Hold</button><br/>
+                    <div class="button" onclick="game.handle_event({class:'button', key:'pause' });">Pause</div><br/>
+                    <div class="button" onclick="game.handle_event({class:'button', key:'hold' });">Hold</div><br/>
                 </div>
             </div>
             <div id="board" class="black"></div>
