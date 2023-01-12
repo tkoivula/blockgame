@@ -11,6 +11,8 @@ const box_size = 22;
 const box_space = 2;
 const box_size_spaced = box_size + box_space;
 const block_size = 5 * box_size_spaced;
+const margin_y = 5;
+const margin_x = 5;
 
 var blocks = [
     { id: "T", original_shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ], color: "purple" },
@@ -209,11 +211,12 @@ const msg = {
 
     init: function() {
         const board_div = document.getElementById("board");
+        //const board_style = window.getComputedStyle(board_div);
         const div = document.getElementById("message");
         div.style.top = board_div.offsetTop + "px";
         div.style.left = board_div.offsetLeft + "px";
-        div.style.width = board_div.style.width;
-        div.style.height = board_div.style.height;
+        div.style.width = board_div.offsetWidth + "px";
+        div.style.height = board_div.offsetHeight + "px";
 
         document.getElementById("help").innerHTML += msg.help_text();
 
@@ -527,11 +530,10 @@ const piece = {
     move_and_draw: function(dx, dy) {
         this.screen_x += dx;
         this.screen_y += dy;
-
         this.piece_div.style.width = block_size + "px";
         this.piece_div.style.height = block_size + "px";
-        this.piece_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y) + "px";
-        this.piece_div.style.left = (board.board_div.offsetLeft + this.screen_x) + "px";
+        this.piece_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y) + "px";
+        this.piece_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
     },
 
     move_left_or_right: function(dx) {
@@ -670,9 +672,10 @@ const init_page = function() {
         }
     }
     
-    document.addEventListener('touchstart', touch_start, { passive: false });
-    document.addEventListener('touchmove', touch_move, { passive: false });
-    document.addEventListener('touchend', touch_end, { passive: false });
+    const board_div = document.getElementById("board");
+    board_div.addEventListener('touchstart', touch_start, { passive: false });
+    board_div.addEventListener('touchmove', touch_move, { passive: false });
+    board_div.addEventListener('touchend', touch_end, { passive: false });
     /*
     document.addEventListener('pointerdown', mouse_down);
     document.addEventListener('pointermove', mouse_move);
@@ -730,7 +733,6 @@ a {
 
 #board {
     padding: 5px;
-    margin-right: 10px;
     text-align: center;
     float: left;
 }
