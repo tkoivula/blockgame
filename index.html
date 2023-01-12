@@ -7,7 +7,7 @@
         <script type = "text/javascript">
 const board_width = 10;
 const board_height = 20;
-const box_size = 21;
+const box_size = 20;
 const box_space = 2;
 const box_size_spaced = box_size + box_space;
 const block_size = 5 * box_size_spaced;
@@ -44,10 +44,8 @@ const game = {
             { filter: (e) => [action_keys.p, "pause"].includes(e.key), action: game.pause, state: game.states.paused },
             { filter: (e) => e.key === action_keys.space, action: game.drop },
             { filter: (e) => e.direction === "swipe_down", action: game.drop },
-            { filter: (e) => e.key === action_keys.left, action: game.move_left },
-            { filter: (e) => e.direction === "swipe_left", action: game.move_left },
-            { filter: (e) => e.key === action_keys.right, action: game.move_right },
-            { filter: (e) => e.direction === "swipe_right", action: game.move_right },
+            { filter: (e) => e.key === action_keys.left, action: function(e) { game.move_left_or_right(-1) }},
+            { filter: (e) => e.key === action_keys.right, action: function(e) { game.move_left_or_right(1) }},
             { filter: (e) => e.direction === "move", action: function(e) { game.move_left_or_right(e.value); } },
             { filter: (e) => e.key === action_keys.up, action: game.rotate_cw },
             { filter: (e) => e.direction === "point", action: game.rotate_cw },
