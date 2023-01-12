@@ -622,58 +622,17 @@ const init_page = function() {
 
     }
     mouse_pressed = false;
-    const mouse_down = function(e) {
-        if (mouse_pressed) return;
-        mouse_pressed = true;
-        mouse_y = e.screenY;
-        mouse_x = e.screenX;
-        move = false;
-        e.preventDefault();
-    }
-    const mouse_up = function(e) {
-        mouse_pressed = false;
-        if (!move && !drop) {
-            game.handle_event({ class:"touch", direction:"point"});
-            e.preventDefault();
-        }
-        mouse_y = null;
-        mouse_x = null;
-        move = false;
-        drop = false;
-    }
     mouse_x = null;
     mouse_y = null;
     move = false; drop = false;
-    const mouse_move = function(e) {
-        if (!mouse_pressed) return;
-        e.preventDefault();
-        console.log("Mouse move " + e);
-        const x = e.screenX;
-        const y = e.screenY;
-        if (!move && mouse_y < y - swipe_limit) {
-            game.handle_event({ class: "touch", direction: "swipe_down" });
-            drop = true; // prevent rotate if drop
-            mouse_up();
-            return;
-        }
-        if (Math.abs(x - mouse_x) > swipe_limit) { 
-            msg.log("Mouse moved " + (x - mouse_x));
-            game.handle_event({ class: "touch", direction: "move", value: x - mouse_x });
-            mouse_x = x;
-            move = true; // prevent other mouse actions if moving left/right
-        }
-    }
-    
+
     const board_div = document.getElementById("touch-area");
     board_div.addEventListener('touchstart', touch_start, { passive: false });
     board_div.addEventListener('touchmove', touch_move, { passive: false });
     board_div.addEventListener('touchend', touch_end, { passive: false });
-    /*
-    document.addEventListener('pointerdown', mouse_down);
-    document.addEventListener('pointermove', mouse_move);
-    document.addEventListener('pointerup', mouse_up );
-    */
    
+    setTimeout(function() { window.scrollTo(0, 1); }, 0);
+
     msg.send(["3", "2", "1"], "", 500);
     msg.send(["Play!"], "", 1000, game.start_game);
 }
@@ -703,10 +662,9 @@ a {
 }
 
 .container {
-    margin: 10px;
     padding: 10px;
     clear: both;
-    max-width: 800px;
+    max-width: 400px;
 }
 
 #header {
@@ -731,14 +689,14 @@ a {
 }
 
 .score-board {
-    padding: 0px 5px 5px 5px;
+    padding: 0px 4px 4px 4px;
     text-align: center;
     float: left;
 }
 
 .score-board-vertical {
     width: 95%;
-    padding: 5px;
+    padding: 4px 4px 0px 4px;
 }
 
 .score-board-vertical .infoline {
@@ -756,8 +714,8 @@ a {
 .infoline {
     width: 80px;
     float: initial;
-    margin: 5px;
-    padding: 5px;
+    margin: 4px;
+    padding: 4px;
     border-radius: 2px;
 }
 
