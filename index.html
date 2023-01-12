@@ -680,11 +680,9 @@ const init_page = function() {
     document.addEventListener('touchmove', touch_move, { passive: false });
     document.addEventListener('touchend', touch_end, { passive: false });
     
-    /*
-    document.addEventListener('pointerdown', mouse_down, { passive: false });
-    document.addEventListener('pointermove', mouse_move, { passive: false });
-    document.addEventListener('pointerup', mouse_up, { passive: false } );
-    */
+    document.addEventListener('pointerdown', mouse_down);
+    document.addEventListener('pointermove', mouse_move);
+    document.addEventListener('pointerup', mouse_up );
    
     msg.send(["3", "2", "1"], "", 500);
     msg.send(["Play!"], "", 1000, game.start_game);
