@@ -7,7 +7,7 @@
         <script type = "text/javascript">
 const board_width = 10;
 const board_height = 20;
-const box_size = 18;
+const box_size = 21;
 const box_space = 2;
 const box_size_spaced = box_size + box_space;
 const block_size = 5 * box_size_spaced;
@@ -133,7 +133,7 @@ const game = {
     create_new_piece: function() {
         const current_piece = this.next_piece;
         this.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-        piece.draw_piece(this.next_piece, "next-piece", -5, 20);  
+        piece.draw_piece(this.next_piece, "next-piece", -5, 20, 0.8);  
         return piece.create_new(current_piece);
     },
 
@@ -460,11 +460,11 @@ const piece = {
         return has_room2;
     },
 
-    draw_piece: function(current_piece, div_id, left = 0, top = 0) {
+    draw_piece: function(current_piece, div_id, left = 0, top = 0, scale = 1.0) {
         const div = document.getElementById(div_id);
         const ll = div.parentNode.offsetLeft + left;
         const tt = div.parentNode.offsetTop + top;
-        piece.draw_blocks(current_piece, div, ll, tt);
+        piece.draw_blocks(current_piece, div, ll, tt, scale);
         div.style.left = ll + "px";
         div.style.top = tt + "px";
     },
@@ -606,7 +606,7 @@ const init_page = function() {
         console.log("Touch move " + e);
         const x = e.touches[0].clientX;
         const y = e.touches[0].clientY;
-        if (!move && mouse_y < y - swipe_limit) {
+        if (!drop && !move && mouse_y < y - swipe_limit) {
             game.handle_event({ class: "touch", direction: "swipe_down" });
             drop = true; // prevent rotate if drop
             e.preventDefault();
@@ -622,13 +622,13 @@ const init_page = function() {
     }
     const touch_end = function(e) {
         console.log("Touch end " + e);
-        mouse_pressed = false;
-        mouse_y = null;
-        mouse_x = null;
         if (!move && !drop) {
             game.handle_event({ class:"touch", direction:"point"});
             e.preventDefault();
         }
+        mouse_pressed = false;
+        mouse_y = null;
+        mouse_x = null;
         move = false;
         drop = false;
 
@@ -644,12 +644,12 @@ const init_page = function() {
     }
     const mouse_up = function(e) {
         mouse_pressed = false;
-        mouse_y = null;
-        mouse_x = null;
         if (!move && !drop) {
             game.handle_event({ class:"touch", direction:"point"});
             e.preventDefault();
         }
+        mouse_y = null;
+        mouse_x = null;
         move = false;
         drop = false;
     }
