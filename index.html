@@ -41,14 +41,14 @@ const game = {
         game.states = { not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
         for (const [id, state] of Object.entries(game.states)) state.id = id;
         game.states.play.handlers = [
-            { filter: (e) => e.key === action_keys.p, action: game.pause, state: game.states.paused },
+            { filter: (e) => [action_keys.p, "pause"].includes(e.key), action: game.pause, state: game.states.paused },
             { filter: (e) => e.key === action_keys.space, action: game.drop },
             { filter: (e) => e.direction === "swipe_down", action: game.drop },
             { filter: (e) => e.key === action_keys.left, action: game.move_left },
             { filter: (e) => e.direction === "swipe_left", action: game.move_left },
             { filter: (e) => e.key === action_keys.right, action: game.move_right },
             { filter: (e) => e.direction === "swipe_right", action: game.move_right },
-            { filter: (e) => e.direction === "move", action: function(e) { game.move_pixels(e.value); } },
+            { filter: (e) => e.direction === "move", action: function(e) { game.move_left_or_right(e.value); } },
             { filter: (e) => e.key === action_keys.up, action: game.rotate_cw },
             { filter: (e) => e.direction === "point", action: game.rotate_cw },
             { filter: (e) => e.key === action_keys.down, action: game.rotate_ccw },
@@ -62,7 +62,7 @@ const game = {
         }
 
         game.states.paused.handlers = [
-            { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.resume, state: game.states.play }
+            { filter: (e) => ["key_press", "touch", "button"].includes(e.class), action: game.resume, state: game.states.play }
         ];
         game.states.confirm_new_game.handlers = [
             { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
@@ -167,11 +167,7 @@ const game = {
         board.animate_drop(lines, 0, box_size_spaced, 4, refresh_rate);
     },
 
-    move_pixels: (px) => { 
-        const round = px > 0 ? Math.floor : Math.ceil;
-        //const dx = msg.log("Moving ", round(px / box_size_spaced));
-        if (px > 0) dx = 1; if (px < 0) dx = -1;
-        piece.move_left_or_right(dx); },
+    move_left_or_right: (dx) => piece.move_left_or_right(dx < 0 ? -1 : dx > 0 ? 1 : 0),
     move_left: () => piece.move_left_or_right(-1), 
     move_right: () => piece.move_left_or_right(1), 
     drop: () => piece.drop(),
@@ -842,6 +838,10 @@ a {
                     </tbody></table>
                 </div>
                 <div class="infoline next black">Hold:<br/> <span id="mem-piece"></span></div>
+                <div class="infoline">
+                    <button onclick="game.handle_event({class:'button', key:'pause' });">Pause</button><br/>
+                    <button onclick="game.handle_event({class:'button', key:'hold' });">Hold</button><br/>
+                </div>
             </div>
             <div id="board" class="black"></div>
             <div class="score-board">
