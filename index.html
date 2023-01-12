@@ -133,7 +133,7 @@ const game = {
     create_new_piece: function() {
         const current_piece = this.next_piece;
         this.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-        piece.draw_piece(this.next_piece, "next-piece", 10, 20);  
+        piece.draw_piece(this.next_piece, "next-piece", -5, 20);  
         return piece.create_new(current_piece);
     },
 
@@ -683,7 +683,7 @@ const init_page = function() {
 
     document.addEventListener('pointerdown', mouse_down, { passive: false });
     document.addEventListener('pointermove', mouse_move, { passive: false });
-    document.addEventListener('pointerup', mouse_up, { passive: false });
+    document.addEventListener('pointerup', mouse_up, { passive: false } );
    
     msg.send(["3", "2", "1"], "", 500);
     msg.send(["Play!"], "", 1000, game.start_game);
@@ -746,6 +746,14 @@ a {
     float: left;
 }
 
+.score-board-vertical {
+    width: 100%;
+}
+
+.score-board-vertical .infoline {
+    float: left;
+}
+
 .score-table .left {
     text-align: right;
 }
@@ -755,10 +763,10 @@ a {
 }
 
 .infoline {
-    width: 100px;
+    width: 90px;
     float: initial;
     margin: 5px;
-    padding: 10px;
+    padding: 5px;
 }
 
 .next {
@@ -814,14 +822,16 @@ a {
         </style>
     </head>
     <body onload="init_page()">
-        <div id="header">
-        </div>
         <div id="main">
             <div id="message" class="message black"></div>
-            <div class="score-board">
+            <div class="score-board score-board-vertical">
                 <div class="infoline black">Score:<br/> <span id="score">0</span></div>
                 <div class="infoline black">Time:<br/> <span id="time">00:00</span></div>
-                <div class="infoline black">Level: <span id="level">0</span></div>
+                <div class="infoline black">Level:<br/> <span id="level">0</span></div>
+            </div>
+            <div class="score-board">
+                <div class="infoline black">Best:<br/> <span id="best">0</span></div>
+                <div class="infoline next black">Next piece:<br/> <span id="next-piece"></span></div>
                 <div class="infoline black">
                     <table class="score-table"><tbody>  
                         <tr><td>Lines:</td> <td id="lines">0</td></tr>
@@ -835,8 +845,6 @@ a {
             </div>
             <div id="board" class="black"></div>
             <div class="score-board">
-                <div class="infoline black">Best:<br/> <span id="best">0</span></div>
-                <div class="infoline next black">Next piece:<br/> <span id="next-piece"></span></div>
                 <div class="infoline help"><div class="help-inner" id="help">
                     <h3>Usage:</h3>
                 </div></div>
