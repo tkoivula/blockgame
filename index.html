@@ -2,12 +2,13 @@
 <html>
     <head>
         <meta charset = "utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title> Block game </title>
         <script type = "text/javascript">
 const board_width = 10;
 const board_height = 20;
-const box_size = 60;
-const box_space = 5;
+const box_size = 18;
+const box_space = 2;
 const box_size_spaced = box_size + box_space;
 const block_size = 5 * box_size_spaced;
 
@@ -61,10 +62,10 @@ const game = {
         }
 
         game.states.paused.handlers = [
-            { filter: (e) => e.class === "key_press", action: game.resume, state: game.states.play }
+            { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.resume, state: game.states.play }
         ];
         game.states.confirm_new_game.handlers = [
-            { filter: (e) => e.class === "key_press", action: game.restart_new_game, state: game.states.play }
+            { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
         ];
         game.state = game.states.not_started;
         msg.log("Initial game state is ", game.state.id);
@@ -132,7 +133,7 @@ const game = {
     create_new_piece: function() {
         const current_piece = this.next_piece;
         this.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-        piece.draw_piece(this.next_piece, "next-piece", 10, 20, 0.3);  
+        piece.draw_piece(this.next_piece, "next-piece", 10, 20);  
         return piece.create_new(current_piece);
     },
 
@@ -459,11 +460,11 @@ const piece = {
         return has_room2;
     },
 
-    draw_piece: function(current_piece, div_id, left = 0, top = 0, scale = 1.0) {
+    draw_piece: function(current_piece, div_id, left = 0, top = 0) {
         const div = document.getElementById(div_id);
         const ll = div.parentNode.offsetLeft + left;
         const tt = div.parentNode.offsetTop + top;
-        piece.draw_blocks(current_piece, div, ll, tt, scale);
+        piece.draw_blocks(current_piece, div, ll, tt);
         div.style.left = ll + "px";
         div.style.top = tt + "px";
     },
@@ -674,10 +675,11 @@ const init_page = function() {
             move = true; // prevent other mouse actions if moving left/right
         }
     }
-    
+    /*
     document.addEventListener('touchstart', touch_start, { passive: false });
     document.addEventListener('touchmove', touch_move, { passive: false });
     document.addEventListener('touchend', touch_end, { passive: false });
+    */
 
     document.addEventListener('pointerdown', mouse_down);
     document.addEventListener('pointermove', mouse_move);
