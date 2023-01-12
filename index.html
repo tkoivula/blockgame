@@ -460,7 +460,7 @@ const piece = {
         div.style.top = tt + "px";
     },
 
-    draw_blocks: function(piece, piece_div, left = 0, top = 0, scale = 1.0) {
+        draw_blocks: function(piece, piece_div, left = 0, top = 0, scale = 1.0) {
         while (piece_div.lastElementChild) {
             piece_div.removeChild(piece_div.lastElementChild);
         }
@@ -574,7 +574,6 @@ const piece = {
             }
             dy += step;
         }
-        msg.log("Drawing shadow to ", dy);
         this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y + dy) + "px";
         this.shadow_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
         this.draw_blocks(this.current_piece, this.shadow_div);
@@ -582,7 +581,6 @@ const piece = {
 
     remove_shadow: function() {
         if (!this.shadow_div) return;
-        msg.log("Removing shadow");
         this.shadow_div.parentElement.removeChild(this.shadow_div);
         this.shadow_div = null;
     },
@@ -773,13 +771,13 @@ a {
     background-color: transparent;
     position: absolute;
 }
-.piece .T { background-color: purple; }
-.piece .I { background-color: cyan; }
-.piece .O { background-color: yellow; }
-.piece .S { background-color: green; }
-.piece .Z { background-color: red; }
-.piece .L { background-color: brown; }
-.piece .J { background-color: blue; }
+.T { background-color: purple; }
+.I { background-color: cyan; }
+.O { background-color: yellow; }
+.S { background-color: green; }
+.Z { background-color: red; }
+.L { background-color: brown; }
+.J { background-color: blue; }
 
 .shadow .box {
     background-color: black;
