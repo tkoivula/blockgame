@@ -675,15 +675,16 @@ const init_page = function() {
             move = true; // prevent other mouse actions if moving left/right
         }
     }
-    /*
+    
     document.addEventListener('touchstart', touch_start, { passive: false });
     document.addEventListener('touchmove', touch_move, { passive: false });
     document.addEventListener('touchend', touch_end, { passive: false });
-    */
-
+    
+    /*
     document.addEventListener('pointerdown', mouse_down, { passive: false });
     document.addEventListener('pointermove', mouse_move, { passive: false });
     document.addEventListener('pointerup', mouse_up, { passive: false } );
+    */
    
     msg.send(["3", "2", "1"], "", 500);
     msg.send(["Play!"], "", 1000, game.start_game);
