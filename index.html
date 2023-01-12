@@ -588,7 +588,7 @@ const init_page = function() {
     document.addEventListener( "keydown", press, false );
 
     const touch_start = function(e) {
-        if (!mouse_pressed) return;
+        if (mouse_pressed) return;
         console.log("Touch start " + e);
         const { touches } = e;
         if (touches && touches.length == 1) {
