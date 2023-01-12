@@ -52,7 +52,7 @@ const game = {
             { filter: (e) => e.key === action_keys.up, action: game.rotate_cw },
             { filter: (e) => e.direction === "point", action: game.rotate_cw },
             { filter: (e) => e.key === action_keys.down, action: game.rotate_ccw },
-            { filter: (e) => e.key === action_keys.h, action: game.hold_piece }
+            { filter: (e) => [action_keys.h, "hold"].includes(e.key), action: game.hold_piece }
         ];
         if (debug) {
             game.states.play.handlers.push(
@@ -119,7 +119,7 @@ const game = {
             game.create_new_piece();
         }
         game.mem_piece.shape = game.mem_piece.original_shape; // reset orientation
-        piece.draw_piece(game.mem_piece, "mem-piece", 10, 20);
+        piece.draw_piece(game.mem_piece, "mem-piece", -5, 20, 0.8);
     },
 
     clear_hold_piece: function() {
@@ -837,7 +837,9 @@ a {
                         <tr><td class="left">1x:</td><td id="lines_1">0</td></tr>
                     </tbody></table>
                 </div>
-                <div class="infoline next black">Hold:<br/> <span id="mem-piece"></span></div>
+                <div class="infoline next black" onclick="game.handle_event({class:'button', key:'hold' });">
+                    Hold:<br/><span id="mem-piece"></span>
+                </div>
                 <div class="infoline">
                     <button onclick="game.handle_event({class:'button', key:'pause' });">Pause</button><br/>
                     <button onclick="game.handle_event({class:'button', key:'hold' });">Hold</button><br/>
