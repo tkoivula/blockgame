@@ -6,8 +6,8 @@
         <script type = "text/javascript">
 const board_width = 10;
 const board_height = 20;
-const box_size = 18;
-const box_space = 2;
+const box_size = 60;
+const box_space = 5;
 const box_size_spaced = box_size + box_space;
 const block_size = 5 * box_size_spaced;
 
@@ -132,7 +132,7 @@ const game = {
     create_new_piece: function() {
         const current_piece = this.next_piece;
         this.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-        piece.draw_piece(this.next_piece, "next-piece", 10, 20);  
+        piece.draw_piece(this.next_piece, "next-piece", 10, 20, 0.3);  
         return piece.create_new(current_piece);
     },
 
@@ -358,10 +358,6 @@ const board = {
             this.matrix[i][j] = 1; // bottom border
         }
 
-        box_template = document.createElement("div");
-        box_template.className = "box";
-        box_template.style.width = box_size + "px";
-        box_template.style.height = box_size + "px";
     },
 
     find_full_lines: function() {
@@ -463,28 +459,35 @@ const piece = {
         return has_room2;
     },
 
-    draw_piece: function(current_piece, div_id, left = 0, top = 0) {
+    draw_piece: function(current_piece, div_id, left = 0, top = 0, scale = 1.0) {
         const div = document.getElementById(div_id);
         const ll = div.parentNode.offsetLeft + left;
         const tt = div.parentNode.offsetTop + top;
-        piece.draw_blocks(current_piece, div, ll, tt);
+        piece.draw_blocks(current_piece, div, ll, tt, scale);
         div.style.left = ll + "px";
         div.style.top = tt + "px";
     },
 
-    draw_blocks: function(piece, piece_div, left = 0, top = 0) {
+    draw_blocks: function(piece, piece_div, left = 0, top = 0, scale = 1.0) {
         while (piece_div.lastElementChild) {
             piece_div.removeChild(piece_div.lastElementChild);
         }
+        const block_s = Math.floor(scale * block_size);
+        const box_s = Math.floor(scale * box_size);
+        const box_spaced = Math.floor(scale * box_size_spaced);
+
         var i = 0;
         piece.divs = [];
         if (!piece.shape) piece.shape = piece.original_shape;
         piece.shape.forEach(b => {
-            var box = box_template.cloneNode(true);
+            const box = document.createElement("div");
+            box.className = "box";
+            box.style.width = box_s + "px";
+            box.style.height = box_s + "px";
             box.style.backgroundColor = piece.color;
             box.my_props = {};
-            box.my_props.left = ((block_size / 2) - (box_size_spaced / 2) + (box_size_spaced * b[0])) + left;
-            box.my_props.top = ((block_size / 2) - (box_size_spaced / 2) + (box_size_spaced * b[1])) + top;
+            box.my_props.left = ((block_s / 2) - (box_spaced / 2) + (box_spaced * b[0])) + left;
+            box.my_props.top = ((block_s / 2) - (box_spaced / 2) + (box_spaced * b[1])) + top;
             box.style.left = box.my_props.left + "px";
             box.style.top = box.my_props.top + "px";
             piece_div.appendChild(box);
@@ -584,17 +587,22 @@ const init_page = function() {
     document.addEventListener( "keydown", press, false );
 
     const touch_start = function(e) {
+        if (!mouse_pressed) return;
         console.log("Touch start " + e);
         const { touches } = e;
         if (touches && touches.length == 1) {
+            mouse_pressed = true;
             mouse_x = touches[0].clientX;
             mouse_y = touches[0].clientY;
+            move = false;
+            drop = false;
             e.preventDefault();
         }
     }
     const swipe_limit = 20;
     const touch_move = function(e) {
-        console.log("Touch end " + e);
+        if (!mouse_pressed) return;
+        console.log("Touch move " + e);
         const x = e.touches[0].clientX;
         const y = e.touches[0].clientY;
         if (!move && mouse_y < y - swipe_limit) {
