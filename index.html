@@ -159,7 +159,7 @@ const game = {
     },
 
     freeze_current_piece: function() {
-        board.mark_position_to_board(piece.screen_x, piece.screen_y, piece.current_piece);
+        board.mark_position_to_board(piece.screen_x, piece.screen_y, piece.current_piece, piece.piece_div);
     },
 
     clear_full_lines: function(lines) {
@@ -415,12 +415,13 @@ const board = {
         return false;
     },
 
-    mark_position_to_board: function(screen_x, screen_y, current_piece) {
+    mark_position_to_board: function(screen_x, screen_y, current_piece, piece_div) {
         const position = this.position_in_matrix(screen_x, screen_y);
         for (i = 0; i < current_piece.shape.length; ++i) {
             const x = position[0] + current_piece.shape[i][0] + 2;
             const y = position[1] + current_piece.shape[i][1] + 2;
-            this.matrix[x][y] = current_piece.divs[i];
+            //this.matrix[x][y] = current_piece.divs[i];
+            this.matrix[x][y] = piece_div.children[i];
         }
     }
 }
@@ -445,6 +446,7 @@ const piece = {
             document.getElementById("board").appendChild( this.piece_div );
             this.draw_blocks(this.current_piece, this.piece_div);
             this.move_and_draw(0, 0);
+            this.draw_shadow();
         }
         return has_room2;
     },
@@ -467,21 +469,20 @@ const piece = {
         const box_spaced = Math.floor(scale * box_size_spaced);
 
         var i = 0;
-        piece.divs = [];
+        //piece.divs = [];
         if (!piece.shape) piece.shape = piece.original_shape;
         piece.shape.forEach(b => {
             const box = document.createElement("div");
-            box.className = "box";
+            box.className = "box " + piece.id;
             box.style.width = box_s + "px";
             box.style.height = box_s + "px";
-            box.style.backgroundColor = piece.color;
             box.my_props = {};
             box.my_props.left = ((block_s / 2) - (box_spaced / 2) + (box_spaced * b[0])) + left;
             box.my_props.top = ((block_s / 2) - (box_spaced / 2) + (box_spaced * b[1])) + top;
             box.style.left = box.my_props.left + "px";
             box.style.top = box.my_props.top + "px";
             piece_div.appendChild(box);
-            piece.divs[i++] = box;
+            //piece.divs[i++] = box;
         });
     },
 
@@ -507,6 +508,7 @@ const piece = {
         if (can_rotate) {
             this.current_piece.shape = rotated;
             this.draw_blocks(this.current_piece, this.piece_div);
+            this.draw_shadow();
         }
     },
 
@@ -531,6 +533,7 @@ const piece = {
     move_left_or_right: function(dx) {
         if (this.can_move(dx * box_size_spaced, 0)) {
             this.move_and_draw(dx * box_size_spaced, 0);
+            this.draw_shadow();
         }
     },
 
@@ -541,16 +544,51 @@ const piece = {
         } else {
             // try with remaining portion
             dy = box_size_spaced - ((this.screen_y + (4 * box_size_spaced)) % box_size_spaced) - 1;
-            if (dy < 1) return false;
+            if (dy < 1) { piece.remove_shadow(); return false; }
             if (this.can_move(0, dy)) {
                 this.move_and_draw(0, dy);
                 return true;
             }
         }
+        piece.remove_shadow();
         return false;
     },
 
+    shadow_div: null,
+
+    draw_shadow: function() {
+        if (!this.shadow_div) {
+            this.shadow_div = document.createElement( "div" );
+            this.shadow_div.className = "piece shadow";
+            this.shadow_div.style.width = block_size + "px";
+            this.shadow_div.style.height = block_size + "px";
+            document.getElementById("board").appendChild( this.shadow_div );
+        }
+
+        var dy = box_size_spaced; var step = box_size_spaced;
+        while (true) {
+            if (board.overlap(this.current_piece.shape, this.screen_x, this.screen_y + dy)) {
+                dy -= step;
+                step = step / 2;
+                if (step <= 1) break;
+            }
+            dy += step;
+        }
+        msg.log("Drawing shadow to ", dy);
+        this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y + dy) + "px";
+        this.shadow_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
+        this.draw_blocks(this.current_piece, this.shadow_div);
+    },
+
+    remove_shadow: function() {
+        if (!this.shadow_div) return;
+        msg.log("Removing shadow");
+        this.shadow_div.parentElement.removeChild(this.shadow_div);
+        this.shadow_div = null;
+    },
+
     drop: function() {
+        this.remove_shadow();
         while (piece.move_down_at_most(box_size_spaced)) {
         }
     }
@@ -734,6 +772,18 @@ a {
 .piece {
     background-color: transparent;
     position: absolute;
+}
+.piece .T { background-color: purple; }
+.piece .I { background-color: cyan; }
+.piece .O { background-color: yellow; }
+.piece .S { background-color: green; }
+.piece .Z { background-color: red; }
+.piece .L { background-color: brown; }
+.piece .J { background-color: blue; }
+
+.shadow .box {
+    background-color: black;
+    border: 1px solid white;
 }
 
 .box {
