@@ -28,6 +28,8 @@ const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 
+const quick_game_time = 1000 * 60 * 3; // 3 min
+
 const game = {
     timer: null,
     state: null,
@@ -64,7 +66,8 @@ const game = {
 
         game.states.paused.handlers = [
             { filter: (e) => [action_keys.p, "resume"].includes(e.key), screen: "play", state: game.states.play },
-            { filter: (e) => [action_keys.p, "new_game"].includes(e.key), screen: "play", action: game.restart_new_game, state: game.states.play }
+            { filter: (e) => ["new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(0); }, state: game.states.play },
+            { filter: (e) => ["new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(quick_game_time); }, state: game.states.play }
         ];
         game.states.confirm_new_game.handlers = [
             { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
@@ -98,12 +101,13 @@ const game = {
         msg.log_json("WARN! None of the handlers matched for ", event);
     },
 
-    start_game: function() {
+    start_game: function(game_time = 0) {
         board.init();
         score_board.clear_current_stats();
         //game.end_time = null;
         //game.start_time = Date.now();
         document.getElementById("main").dataset.start_time = Date.now();
+        document.getElementById("main").dataset.game_time = game_time;
         game.time_timer = window.setInterval(msg.refresh_time, 1000);
         game.is_new_personal_best = false;
         game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
@@ -113,11 +117,11 @@ const game = {
         game.timer = window.setInterval(game.main_loop, refresh_rate);
     },
 
-    restart_new_game: function() {
+    restart_new_game: function(game_time = 0) {
         game.state = game.states.not_started;
         msg.clear_messages();
         piece.remove_shadow();
-        game.start_game();
+        game.start_game(game_time);
     },
 
     hold_piece: function() {
@@ -403,13 +407,14 @@ const board = {
                     }   
                 }
             }
-            piece.drop_shadow(step + 1);
+            piece.drop_shadow(step);
         });
         current += step;
         if (current < total) {
             setTimeout(() => board.animate_drop(lines, current, total, step, delay), delay);
         } else {
             lines.forEach((y) => board.drop_above(y));
+            piece.draw_shadow();
         }
 
     },
@@ -589,6 +594,7 @@ const piece = {
             }
             dy += step;
         }
+        if (dy < (2 * box_size_spaced)) { this.remove_shadow(); return } // too close
         this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y + dy) + "px";
         this.shadow_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
         this.draw_blocks(this.current_piece, this.shadow_div);
@@ -789,9 +795,11 @@ a {
 }
 
 .piece {
+    z-index: 50;
     background-color: transparent;
     position: absolute;
 }
+
 .T { background-color: purple; }
 .I { background-color: cyan; }
 .O { background-color: yellow; }
@@ -799,6 +807,10 @@ a {
 .Z { background-color: red; }
 .L { background-color: brown; }
 .J { background-color: blue; }
+
+.shadow {
+    z-index: 10;
+}
 
 .shadow .box {
     background-color: black;
@@ -849,8 +861,13 @@ a {
     height: 300px;
 }
 
+.menu .title {
+    color: white;
+    margin: 50px 10px 50px 10px;
+}
+
 .menu .button {
-    margin: 10px;
+    margin: 10px 30px 10px 30px;
 }
 
 .black {
@@ -862,9 +879,11 @@ a {
     <body onload="init_page()">
         <div id="main">
             <div id="menu" data-screen="menu" class="menu board-size">
-                <div>Paused</div>
+                <div class="title"v>Paused</div>
                 <div class="button" onclick="game.handle_event({class:'button', key:'resume'})">Resume</div>
-                <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Game</div>
+                <br/><br/>
+                <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Standard Game</div>
+                <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>
             </div>
             <div id="touch-area" class="board-size"></div>
             <div id="message" class="message black board-size"></div>
