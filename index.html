@@ -32,6 +32,7 @@ const game = {
     timer: null,
     state: null,
     states: null,
+    current_screen: null,
     next_piece: null,
     mem_piece: null,
     is_new_personal_best: null,
@@ -69,6 +70,16 @@ const game = {
         ];
         game.state = game.states.not_started;
         msg.log("Initial game state is ", game.state.id);
+
+        this.current_screen = "play";
+        this.show_screen(this.current_screen);
+    },
+
+    show_screen: function(screen) {
+        for (const elem of document.querySelectorAll('[data-screen]')) {
+            msg.log("Found screen ", elem.dataset.screen);
+            elem.style.visibility = elem.dataset.screen === screen ? "visible" : "hidden";
+        }
     },
 
     handle_event: function(event) {
@@ -79,8 +90,8 @@ const game = {
                 if (h.state) {
                     msg.log("Entering state ", h.state.id);
                     game.state = h.state;
-                }                    
-                return;
+                }
+                 return;
             }
         }
         msg.log("State is ", game.state.id);
@@ -151,12 +162,16 @@ const game = {
     },
 
     pause: function() {
-        this.pause_message = msg.send(["Paused"], "black", 0);
+        //this.pause_message = msg.send(["Paused"], "black", 0);
+        game.current_screen = "menu";
+        game.show_screen(game.current_screen);
     },
 
     resume: function() {
-        msg.clear_messages();
-        this.pause_message = null;
+        //msg.clear_messages();
+        //this.pause_message = null;
+        game.current_screen = "play";
+        game.show_screen(game.current_screen);
     },
 
     freeze_current_piece: function() {
@@ -833,6 +848,20 @@ a {
     position: absolute;
 }
 
+.menu {
+    position: absolute;
+    background-color: grey;
+    top: 100px;
+    vertical-align: center;
+    text-align: center;
+    width: 300px;
+    height: 300px;
+}
+
+.menu .button {
+    margin: 10px;
+}
+
 .black {
     background-color: rgb(30, 30, 30);
     color: white;
@@ -841,6 +870,11 @@ a {
     </head>
     <body onload="init_page()">
         <div id="main">
+            <div id="menu" data-screen="menu" class="menu board-size">
+                <div>Paused</div>
+                <div class="button">Resume</div>
+                <div class="button">New Game</div>
+            </div>
             <div id="touch-area" class="board-size"></div>
             <div id="message" class="message black board-size"></div>
             <div class="score-board score-board-vertical">
@@ -868,7 +902,7 @@ a {
                     <div class="button" onclick="game.handle_event({class:'button', key:'pause' });">Pause</div><br/>
                 </div>
             </div>
-            <div id="board" class="black"></div>
+            <div id="board" data-screen="play" class="black"></div>
         </div>
         <div class="container">
             <h1>Block game</h1>
@@ -911,7 +945,7 @@ a {
             </table>
         </div>
         <div id="footer">
-            2023 &copy; <a href="">T. Koivula</a>
+            2023 &copy; <a href="https://github.com/tkoivula/">T. Koivula</a> <a href="https://github.com/tkoivula/tkoivula.github.io/">[Source code]</a>
         </div>
     </body>
 </html>
