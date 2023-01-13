@@ -43,10 +43,10 @@ const game = {
     time_timer: null,
     
     init: function() {
-        game.states = { not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
+        game.states = { menu: {}, not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
         for (const [id, state] of Object.entries(game.states)) state.id = id;
         game.states.play.handlers = [
-            { filter: (e) => [action_keys.p, "pause"].includes(e.key), screen: "menu", state: game.states.paused },
+            { filter: (e) => [action_keys.p, "pause"].includes(e.key), screen: "pause", action: game.pause, state: game.states.paused },
             { filter: (e) => e.key === action_keys.space, action: game.drop },
             { filter: (e) => e.direction === "swipe_down", action: game.drop },
             { filter: (e) => e.key === action_keys.left, action: function(e) { game.move_left_or_right(-1) }},
@@ -64,17 +64,21 @@ const game = {
                 { filter: (e) => { return e.key === action_keys.s; }, action: () => inc("level", -1) });
         }
 
+        game.states.menu.handlers = [
+            { filter: (e) => ["new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(0); }, state: game.states.play },
+            { filter: (e) => ["new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(quick_game_time); }, state: game.states.play }
+        ];
         game.states.paused.handlers = [
-            { filter: (e) => [action_keys.p, "resume"].includes(e.key), screen: "play", state: game.states.play },
+            { filter: (e) => [action_keys.p, "resume"].includes(e.key), screen: "play", action: game.resume, state: game.states.play },
             { filter: (e) => ["new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(0); }, state: game.states.play },
             { filter: (e) => ["new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(quick_game_time); }, state: game.states.play }
         ];
         game.states.confirm_new_game.handlers = [
             { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
         ];
-        game.state = game.states.not_started;
+        game.state = game.states.menu;
         msg.log("Initial game state is ", game.state.id);
-        this.switch_to_screen("play");
+        this.switch_to_screen("menu");
     },
 
     switch_to_screen: function(screen) {
@@ -102,12 +106,14 @@ const game = {
     },
 
     start_game: function(game_time = 0) {
+        msg.log("New game");
         board.init();
         score_board.clear_current_stats();
         //game.end_time = null;
         //game.start_time = Date.now();
         document.getElementById("main").dataset.start_time = Date.now();
         document.getElementById("main").dataset.game_time = game_time;
+        document.getElementById("main").dataset.elapsed_time = 0;
         game.time_timer = window.setInterval(msg.refresh_time, 1000);
         game.is_new_personal_best = false;
         game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
@@ -119,9 +125,23 @@ const game = {
 
     restart_new_game: function(game_time = 0) {
         game.state = game.states.not_started;
+        window.clearInterval(game.timer); game.timer = null;
+        window.clearInterval(game.time_timer); game.time_timer = null;
         msg.clear_messages();
         piece.remove_shadow();
         game.start_game(game_time);
+    },
+
+    pause: function() {
+        document.getElementById("main").dataset.elapsed_time = Date.now() - document.getElementById("main").dataset.start_time;
+        window.clearInterval(game.time_timer); game.time_timer = null;
+        msg.log("pause");
+    },
+
+    resume: function() {
+        document.getElementById("main").dataset.start_time = Date.now();
+        game.time_timer = window.setInterval(msg.refresh_time, 1000);
+        msg.log("resume");
     },
 
     hold_piece: function() {
@@ -255,8 +275,9 @@ const msg = {
     },
 
     refresh_time: function() {
-        const start = document.getElementById("main").dataset.start_time;
-        document.getElementById("time").innerText = print_duration(Date.now() - start);
+        const start_time = Number(document.getElementById("main").dataset.start_time);
+        var elapsed_time = Number(document.getElementById("main").dataset.elapsed_time);
+        document.getElementById("time").innerText = print_duration(Date.now() - start_time + elapsed_time);
     },
 
     log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
@@ -695,9 +716,10 @@ const init_page = function() {
     board_div.addEventListener('touchend', touch_end, { passive: false });
    
     setTimeout(function() { window.scrollTo(0, 1); }, 0);
-
+    /*
     msg.send(["3", "2", "1"], "", 500);
     msg.send(["Play!"], "", 1000, game.start_game);
+    */
 }
         </script>
         <style>
@@ -878,8 +900,14 @@ a {
     </head>
     <body onload="init_page()">
         <div id="main">
-            <div id="menu" data-screen="menu" class="menu board-size">
-                <div class="title"v>Paused</div>
+            <div id="menu-div" data-screen="menu" class="menu board-size">
+                <div class="title">Block Game</div>
+                <br/><br/>
+                <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Standard Game</div>
+                <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>
+            </div>
+            <div id="pause-div" data-screen="pause" class="menu board-size">
+                <div class="title">Paused</div>
                 <div class="button" onclick="game.handle_event({class:'button', key:'resume'})">Resume</div>
                 <br/><br/>
                 <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Standard Game</div>
