@@ -38,8 +38,6 @@ const game = {
     next_piece: null,
     mem_piece: null,
     is_new_personal_best: null,
-    //start_time: null,
-    //end_time: null,
     time_timer: null,
     
     init: function() {
@@ -106,26 +104,29 @@ const game = {
     },
 
     start_game: function(game_time = 0) {
-        msg.log("New game");
-        board.init();
-        score_board.clear_current_stats();
-        //game.end_time = null;
-        //game.start_time = Date.now();
-        document.getElementById("main").dataset.start_time = Date.now();
         document.getElementById("main").dataset.game_time = game_time;
-        document.getElementById("main").dataset.elapsed_time = 0;
-        game.time_timer = window.setInterval(msg.refresh_time, 1000);
-        game.is_new_personal_best = false;
-        game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-        game.clear_hold_piece();
-        game.create_new_piece();
-        game.state = game.states.play;
-        game.timer = window.setInterval(game.main_loop, refresh_rate);
+        msg.refresh_time();
+        msg.send(["3", "2", "1"], "", 500);
+        msg.send(["Play!"], "", 1000, () => {
+            msg.log("New game");
+            board.init();
+            score_board.clear_current_stats();
+            msg.timer_on();
+            msg.refresh_time();
+            game.time_timer = window.setInterval(msg.refresh_time, 1000);
+            game.is_new_personal_best = false;
+            game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
+            game.clear_hold_piece();
+            game.create_new_piece();
+            game.state = game.states.play;
+            game.timer = window.setInterval(game.main_loop, refresh_rate);
+        }); 
     },
 
     restart_new_game: function(game_time = 0) {
         game.state = game.states.not_started;
         window.clearInterval(game.timer); game.timer = null;
+        msg.timer_clear();
         window.clearInterval(game.time_timer); game.time_timer = null;
         msg.clear_messages();
         piece.remove_shadow();
@@ -133,13 +134,13 @@ const game = {
     },
 
     pause: function() {
-        document.getElementById("main").dataset.elapsed_time = Date.now() - document.getElementById("main").dataset.start_time;
+        msg.timer_off();
         window.clearInterval(game.time_timer); game.time_timer = null;
         msg.log("pause");
     },
 
     resume: function() {
-        document.getElementById("main").dataset.start_time = Date.now();
+        msg.timer_on();
         game.time_timer = window.setInterval(msg.refresh_time, 1000);
         msg.log("resume");
     },
@@ -174,6 +175,7 @@ const game = {
     },
 
     game_over: function() {
+        msg.timer_off();
         window.clearInterval(this.timer); this.timer = null;
         window.clearInterval(this.time_timer); this.time_timer = null;
         //this.end_time = Date.now();
@@ -274,10 +276,36 @@ const msg = {
         msg.clear_message();
     },
 
+    timer_on: function() {
+        if (document.getElementById("main").dataset.start_time) return; // already running?!?
+        document.getElementById("main").dataset.start_time = Date.now();
+    },
+
+    timer_off: function() {
+        const ds = document.getElementById("main").dataset;
+        if (!ds.start_time) return; // not running?!?
+        if (!ds.elapsed_time) ds.elapsed_time = 0;
+        ds.elapsed_time = Number(ds.elapsed_time) + Date.now() - Number(ds.start_time);
+        ds.start_time = "";
+    },
+
+    timer_clear: function() {
+        this.timer_off();
+        const ds = document.getElementById("main").dataset;
+        ds.elapsed_time = ds.start_time = ds.game_time = "";
+    },
+
     refresh_time: function() {
-        const start_time = Number(document.getElementById("main").dataset.start_time);
-        var elapsed_time = Number(document.getElementById("main").dataset.elapsed_time);
-        document.getElementById("time").innerText = print_duration(Date.now() - start_time + elapsed_time);
+        const ds = document.getElementById("main").dataset;
+        var total = 0;
+        if (ds.elapsed_time) total = Number(ds.elapsed_time);
+        if (ds.start_time) total = total + (Date.now() - Number(ds.start_time));
+        var remaining = Number(ds.game_time) - total; 
+
+        document.getElementById("time").innerText = print_duration(total);
+        if (ds.game_time && Number(ds.game_time) > 0) {
+            document.getElementById("remaining").innerText = "(" + print_duration(remaining) + ")";
+        }
     },
 
     log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
@@ -716,10 +744,6 @@ const init_page = function() {
     board_div.addEventListener('touchend', touch_end, { passive: false });
    
     setTimeout(function() { window.scrollTo(0, 1); }, 0);
-    /*
-    msg.send(["3", "2", "1"], "", 500);
-    msg.send(["Play!"], "", 1000, game.start_game);
-    */
 }
         </script>
         <style>
@@ -804,9 +828,10 @@ a {
     border-radius: 2px;
 }
 
-.score-board .right {
-    margin-left: 60px;
+.wide {
+    width: 140px;
 }
+
 
 .next {
     height: 80px;
@@ -896,6 +921,10 @@ a {
     background-color: rgb(30, 30, 30);
     color: white;
 }
+
+#remaining-container {
+    visibility: hidden;
+}
         </style>
     </head>
     <body onload="init_page()">
@@ -904,7 +933,7 @@ a {
                 <div class="title">Block Game</div>
                 <br/><br/>
                 <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Standard Game</div>
-                <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>
+                <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>o
             </div>
             <div id="pause-div" data-screen="pause" class="menu board-size">
                 <div class="title">Paused</div>
@@ -917,7 +946,10 @@ a {
             <div id="message" class="message black board-size"></div>
             <div class="score-board score-board-vertical">
                 <div class="infoline black">Score:<br/> <span id="score" class="game-value">0</span></div>
-                <div class="infoline black">Time:<br/> <span id="time" data-default="00:00" class="game-value">00:00</span></div>
+                <div class="infoline black wide">Time:<br/>
+                    <span id="time" data-default="00:00" class="game-value">00:00</span>
+                    <span id="remaining" data-default=" " class="game-value"></span>
+                </div>
                 <div class="infoline black right">Best:<br/> <span id="best">0</span></div>
             </div>
             <div class="score-board">
