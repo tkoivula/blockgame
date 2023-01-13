@@ -35,8 +35,8 @@ const game = {
     next_piece: null,
     mem_piece: null,
     is_new_personal_best: null,
-    start_time: null,
-    end_time: null,
+    //start_time: null,
+    //end_time: null,
     time_timer: null,
     
     init: function() {
@@ -89,11 +89,10 @@ const game = {
 
     start_game: function() {
         board.init();
-        set("score", 0);
-        set("level", 1);
-        set("lines", 0);
-        game.end_time = null;
-        game.start_time = Date.now();
+        score_board.clear_current_stats();
+        //game.end_time = null;
+        //game.start_time = Date.now();
+        document.getElementById("main").dataset.start_time = Date.now();
         game.time_timer = window.setInterval(msg.refresh_time, 1000);
         game.is_new_personal_best = false;
         game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
@@ -120,6 +119,7 @@ const game = {
         }
         game.mem_piece.shape = game.mem_piece.original_shape; // reset orientation
         piece.draw_piece(game.mem_piece, "mem-piece", -5, 20, 0.8);
+        piece.draw_shadow();
     },
 
     clear_hold_piece: function() {
@@ -140,7 +140,8 @@ const game = {
     game_over: function() {
         window.clearInterval(this.timer); this.timer = null;
         window.clearInterval(this.time_timer); this.time_timer = null;
-        this.end_time = Date.now();
+        //this.end_time = Date.now();
+        //document.getElementById("main").dataset.end_time = Date.now();
         this.state = game.states.game_over;
         score_board.update_and_show_current_stats();
         msg.send(["Game Over!"], "", 2000, () => {
@@ -247,7 +248,8 @@ const msg = {
     },
 
     refresh_time: function() {
-        document.getElementById("time").innerText = print_duration(Date.now() - game.start_time);
+        const start = document.getElementById("main").dataset.start_time;
+        document.getElementById("time").innerText = print_duration(Date.now() - start);
     },
 
     log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
@@ -274,7 +276,7 @@ parse_duration = function(str) {
 
 const score_board = {
     item_name: "stats-1.0",
-    fields: [ "time", "level", "score", "lines", "lines_4", "lines_3", "lines_2", "lines_1" ],
+    //fields: [ "time", "level", "score", "lines", "lines_4", "lines_3", "lines_2", "lines_1" ],
     initial_overall_stats:
         { games: 0, time: 0, first_game: Date.now(), score: 0, level: 0, lines: 0, lines_4: 0},
     ot_stats: null,
@@ -285,10 +287,18 @@ const score_board = {
         this.show_overall_stats();
     },
 
+    clear_current_stats: function() {
+        for (elem of document.getElementsByClassName("game-value")) {
+            elem.innerText = elem.dataset.default ? elem.dataset.default : "0";
+        }
+    },
+
     update_and_show_current_stats: function(stats = {}) {
-        for (field of this.fields) stats[field] = get(field);
+        for (elem of document.getElementsByClassName("game-value")) {
+            stats[elem.id] = elem.innerText;
+        }
         msg.log_json("Stats ", stats);
-        for (key of Object.keys(stats)) set("t-" + key, stats[key]); // show current
+        for (key of Object.keys(stats)) set("previous-" + key, stats[key]); // show current
         score_board.update_overall_stats(stats); // show overall
     },
 
@@ -390,6 +400,7 @@ const board = {
                     }   
                 }
             }
+            piece.drop_shadow(step + 1);
         });
         current += step;
         if (current < total) {
@@ -460,7 +471,7 @@ const piece = {
         div.style.top = tt + "px";
     },
 
-        draw_blocks: function(piece, piece_div, left = 0, top = 0, scale = 1.0) {
+    draw_blocks: function(piece, piece_div, left = 0, top = 0, scale = 1.0) {
         while (piece_div.lastElementChild) {
             piece_div.removeChild(piece_div.lastElementChild);
         }
@@ -577,6 +588,11 @@ const piece = {
         this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y + dy) + "px";
         this.shadow_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
         this.draw_blocks(this.current_piece, this.shadow_div);
+    },
+
+    drop_shadow: function(dy) {
+        if (!this.shadow_div) return;
+        this.shadow_div.style.top = (this.shadow_div.offsetTop + dy) + "px";
     },
 
     remove_shadow: function() {
@@ -828,20 +844,20 @@ a {
             <div id="touch-area" class="board-size"></div>
             <div id="message" class="message black board-size"></div>
             <div class="score-board score-board-vertical">
-                <div class="infoline black">Score:<br/> <span id="score">0</span></div>
-                <div class="infoline black">Time:<br/> <span id="time">00:00</span></div>
+                <div class="infoline black">Score:<br/> <span id="score" class="game-value">0</span></div>
+                <div class="infoline black">Time:<br/> <span id="time" data-default="00:00" class="game-value">00:00</span></div>
                 <div class="infoline black right">Best:<br/> <span id="best">0</span></div>
             </div>
             <div class="score-board">
-                <div class="infoline black">Level:<br/> <span id="level">0</span></div>
+                <div class="infoline black">Level:<br/> <span id="level" data-default="1" class="game-value">0</span></div>
                 <div class="infoline next black">Next piece:<br/> <span id="next-piece"></span></div>
                 <div class="infoline black">
                     <table class="score-table"><tbody>  
-                        <tr><td>Lines:</td> <td id="lines">0</td></tr>
-                        <tr><td class="left">4x:</td><td id="lines_4">0</td></tr>
-                        <tr><td class="left">3x:</td><td id="lines_3">0</td></tr>
-                        <tr><td class="left">2x:</td><td id="lines_2">0</td></tr>
-                        <tr><td class="left">1x:</td><td id="lines_1">0</td></tr>
+                        <tr><td>Lines:</td> <td id="lines" class="game-value">0</td></tr>
+                        <tr><td class="left">4x:</td><td id="lines_4" class="game-value">0</td></tr>
+                        <tr><td class="left">3x:</td><td id="lines_3" class="game-value">0 </td></tr>
+                        <tr><td class="left">2x:</td><td id="lines_2" class="game-value">0</td></tr>
+                        <tr><td class="left">1x:</td><td id="lines_1" class="game-value">0</td></tr>
                     </tbody></table>
                 </div>
                 <div class="infoline next black" onclick="game.handle_event({class:'button', key:'hold' });">
@@ -868,14 +884,14 @@ a {
             <table class="stats black">
                 <colgroup><col/><col style="width:100px;"/></colgroup>
                 <tbody>  
-                    <tr><td>Total time:</td><td id="t-time"></td></tr>
-                    <tr><td>Score:</td><td id="t-score"></td></tr>
-                    <tr><td>Highest level:</td><td id="t-level"></td></tr>
-                    <tr><td>4-line combos:</td><td id="t-lines_4"></td></tr>
-                    <tr><td>3-line combos:</td><td id="t-lines_3"></td></tr>
-                    <tr><td>2-line combos:</td><td id="t-lines_2"></td></tr>
-                    <tr><td>Single lines:</td><td id="t-lines_1"></td></tr>
-                    <tr><td>Total lines:</td><td id="t-lines"></td></tr>
+                    <tr><td>Time:</td><td id="previous-time" class="game-value"></td></tr>
+                    <tr><td>Score:</td><td id="previous-score" class="game-value"></td></tr>
+                    <tr><td>Level:</td><td id="previous-level" data-default="1" class="game-value"></td></tr>
+                    <tr><td>4-line combos:</td><td id="previous-lines_4" class="game-value"></td></tr>
+                    <tr><td>3-line combos:</td><td id="previous-lines_3" class="game-value"></td></tr>
+                    <tr><td>2-line combos:</td><td id="previous-lines_2" class="game-value"></td></tr>
+                    <tr><td>Single lines:</td><td id="previous-lines_1" class="game-value"></td></tr>
+                    <tr><td>Lines:</td><td id="previous-lines" class="game-value"></td></tr>
                 </tbody>
             </table>
         </div>
