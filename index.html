@@ -28,7 +28,7 @@ const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 
-const quick_game_time = 1000 * 60 * 3; // 3 min
+const quick_game_time = 100 * 60 * 3; // 3 min
 
 const game = {
     timer: null,
@@ -81,6 +81,7 @@ const game = {
 
     switch_to_screen: function(screen) {
         for (const elem of document.querySelectorAll('[data-screen]')) {
+            if (elem.id === "board") continue;
             elem.style.visibility = elem.dataset.screen === screen ? "visible" : "hidden";
         }
         this.current_screen = msg.log("Switching to screen ", screen);
@@ -106,17 +107,21 @@ const game = {
     start_game: function(game_time = 0) {
         document.getElementById("main").dataset.game_time = game_time;
         msg.refresh_time();
+        board.init();
+        game.clear_hold_piece();
         msg.send(["3", "2", "1"], "", 500);
         msg.send(["Play!"], "", 1000, () => {
             msg.log("New game");
-            board.init();
             score_board.clear_current_stats();
             msg.timer_on();
             msg.refresh_time();
             game.time_timer = window.setInterval(msg.refresh_time, 1000);
+            if (game_time > 0) {
+                msg.count_down([120, 60, 10, 3, 2, 1], game_time);
+                window.setTimeout(game.timeout, game_time);
+            }
             game.is_new_personal_best = false;
             game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-            game.clear_hold_piece();
             game.create_new_piece();
             game.state = game.states.play;
             game.timer = window.setInterval(game.main_loop, refresh_rate);
@@ -178,14 +183,17 @@ const game = {
         msg.timer_off();
         window.clearInterval(this.timer); this.timer = null;
         window.clearInterval(this.time_timer); this.time_timer = null;
-        //this.end_time = Date.now();
-        //document.getElementById("main").dataset.end_time = Date.now();
         this.state = game.states.game_over;
         score_board.update_and_show_current_stats();
         msg.send(["Game Over!"], "", 2000, () => {
-            this.state = game.states.confirm_new_game;
-            msg.send(["New game?"], "", 0);
+            game.state = game.states.menu;
+            this.switch_to_screen("menu");
         });
+    },
+
+    timeout: function() {
+        msg.send(["Timeout!"], "", 1000);
+        game.game_over();
     },
 
     freeze_current_piece: function() {
@@ -305,6 +313,13 @@ const msg = {
         document.getElementById("time").innerText = print_duration(total);
         if (ds.game_time && Number(ds.game_time) > 0) {
             document.getElementById("remaining").innerText = "(" + print_duration(remaining) + ")";
+        }
+    },
+
+    count_down: function(times, end_time) {
+        for (const t of times) {
+            if (t * 1000 > end_time) continue;
+            window.setTimeout(() => msg.send([print_duration(t * 1000) + " left"], "", 900), end_time - (t * 1000));
         }
     },
 
@@ -900,7 +915,7 @@ a {
 .menu {
     z-index: 99;
     position: absolute;
-    background-color: grey;
+    background-color: rgba(30, 30, 30, 0.7);
     top: 100px;
     vertical-align: center;
     text-align: center;
