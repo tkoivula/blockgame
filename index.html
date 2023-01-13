@@ -44,7 +44,7 @@ const game = {
         game.states = { not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
         for (const [id, state] of Object.entries(game.states)) state.id = id;
         game.states.play.handlers = [
-            { filter: (e) => [action_keys.p, "pause"].includes(e.key), action: game.pause, state: game.states.paused },
+            { filter: (e) => [action_keys.p, "pause"].includes(e.key), screen: "menu", state: game.states.paused },
             { filter: (e) => e.key === action_keys.space, action: game.drop },
             { filter: (e) => e.direction === "swipe_down", action: game.drop },
             { filter: (e) => e.key === action_keys.left, action: function(e) { game.move_left_or_right(-1) }},
@@ -63,23 +63,22 @@ const game = {
         }
 
         game.states.paused.handlers = [
-            { filter: (e) => ["key_press", "touch", "button"].includes(e.class), action: game.resume, state: game.states.play }
+            { filter: (e) => [action_keys.p, "resume"].includes(e.key), screen: "play", state: game.states.play },
+            { filter: (e) => [action_keys.p, "new_game"].includes(e.key), screen: "play", action: game.restart_new_game, state: game.states.play }
         ];
         game.states.confirm_new_game.handlers = [
             { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
         ];
         game.state = game.states.not_started;
         msg.log("Initial game state is ", game.state.id);
-
-        this.current_screen = "play";
-        this.show_screen(this.current_screen);
+        this.switch_to_screen("play");
     },
 
-    show_screen: function(screen) {
+    switch_to_screen: function(screen) {
         for (const elem of document.querySelectorAll('[data-screen]')) {
-            msg.log("Found screen ", elem.dataset.screen);
             elem.style.visibility = elem.dataset.screen === screen ? "visible" : "hidden";
         }
+        this.current_screen = msg.log("Switching to screen ", screen);
     },
 
     handle_event: function(event) {
@@ -91,7 +90,8 @@ const game = {
                     msg.log("Entering state ", h.state.id);
                     game.state = h.state;
                 }
-                 return;
+                if (h.screen) game.switch_to_screen(h.screen);
+                return;
             }
         }
         msg.log("State is ", game.state.id);
@@ -159,19 +159,6 @@ const game = {
             this.state = game.states.confirm_new_game;
             msg.send(["New game?"], "", 0);
         });
-    },
-
-    pause: function() {
-        //this.pause_message = msg.send(["Paused"], "black", 0);
-        game.current_screen = "menu";
-        game.show_screen(game.current_screen);
-    },
-
-    resume: function() {
-        //msg.clear_messages();
-        //this.pause_message = null;
-        game.current_screen = "play";
-        game.show_screen(game.current_screen);
     },
 
     freeze_current_piece: function() {
@@ -843,12 +830,13 @@ a {
 }
 
 #touch-area {
-    z-index: 99;
+    z-index: 90;
     background-color: transparent;
     position: absolute;
 }
 
 .menu {
+    z-index: 99;
     position: absolute;
     background-color: grey;
     top: 100px;
@@ -872,8 +860,8 @@ a {
         <div id="main">
             <div id="menu" data-screen="menu" class="menu board-size">
                 <div>Paused</div>
-                <div class="button">Resume</div>
-                <div class="button">New Game</div>
+                <div class="button" onclick="game.handle_event({class:'button', key:'resume'})">Resume</div>
+                <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Game</div>
             </div>
             <div id="touch-area" class="board-size"></div>
             <div id="message" class="message black board-size"></div>
