@@ -85,12 +85,12 @@ const game = {
         const handlers = game.state.handlers;
         if (game.state.handlers) for (const h of game.state.handlers) {
             if (h.filter(event)) {
+                if (h.screen) game.switch_to_screen(h.screen);
                 if (h.action) h.action(event);
                 if (h.state) {
                     msg.log("Entering state ", h.state.id);
                     game.state = h.state;
                 }
-                if (h.screen) game.switch_to_screen(h.screen);
                 return;
             }
         }
@@ -116,6 +116,7 @@ const game = {
     restart_new_game: function() {
         game.state = game.states.not_started;
         msg.clear_messages();
+        piece.remove_shadow();
         game.start_game();
     },
 
@@ -571,13 +572,14 @@ const piece = {
 
     draw_shadow: function() {
         if (!this.shadow_div) {
+            msg.log("Creating new shadow");
             this.shadow_div = document.createElement( "div" );
             this.shadow_div.className = "piece shadow";
             this.shadow_div.style.width = block_size + "px";
             this.shadow_div.style.height = block_size + "px";
             document.getElementById("board").appendChild( this.shadow_div );
         }
-
+        msg.log("Drawing shadow");
         var dy = box_size_spaced; var step = box_size_spaced;
         while (true) {
             if (board.overlap(this.current_piece.shape, this.screen_x, this.screen_y + dy)) {
@@ -594,6 +596,7 @@ const piece = {
 
     drop_shadow: function(dy) {
         if (!this.shadow_div) return;
+        msg.log("Dropping shadow");
         this.shadow_div.style.top = (this.shadow_div.offsetTop + dy) + "px";
     },
 
