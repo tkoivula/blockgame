@@ -28,7 +28,7 @@ const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 
-const quick_game_time = 50 * 60 * 3; // 3 min
+const quick_game_time = 1000 * 60 * 3; // 3 min
 
 const game = {
     timers: [],
@@ -88,6 +88,7 @@ const game = {
     },
 
     handle_event: function(event) {
+        msg.log("State is ", game.state.id);
         const handlers = game.state.handlers;
         if (game.state.handlers) for (const h of game.state.handlers) {
             if (h.filter(event)) {
@@ -100,7 +101,6 @@ const game = {
                 return;
             }
         }
-        msg.log("State is ", game.state.id);
         msg.log_json("WARN! None of the handlers matched for ", event);
     },
 
@@ -142,7 +142,7 @@ const game = {
     pause: function() {
         msg.timer_off();
         while (game.timers.length > 0) window.clearInterval(game.timers.pop());
-        msg.log("pause");
+        msg.log("Pause.");
     },
 
     resume: function() {
@@ -150,7 +150,7 @@ const game = {
         const remaining_time = msg.refresh_time();
         game.timers.push(window.setInterval(msg.refresh_time, 1000));
         if (remaining_time > 0) game.schedule_count_down(remaining_time);
-        msg.log("resume");
+        msg.log("Resume.");
     },
 
     hold_piece: function() {
@@ -646,14 +646,12 @@ const piece = {
 
     draw_shadow: function() {
         if (!this.shadow_div) {
-            msg.log("Creating new shadow");
             this.shadow_div = document.createElement( "div" );
             this.shadow_div.className = "piece shadow";
             this.shadow_div.style.width = block_size + "px";
             this.shadow_div.style.height = block_size + "px";
             document.getElementById("board").appendChild( this.shadow_div );
         }
-        msg.log("Drawing shadow");
         var dy = box_size_spaced; var step = box_size_spaced;
         while (true) {
             if (board.overlap(this.current_piece.shape, this.screen_x, this.screen_y + dy)) {
@@ -671,7 +669,6 @@ const piece = {
 
     drop_shadow: function(dy) {
         if (!this.shadow_div) return;
-        msg.log("Dropping shadow");
         this.shadow_div.style.top = (this.shadow_div.offsetTop + dy) + "px";
     },
 
@@ -700,7 +697,7 @@ const init_page = function() {
     msg.init();
 
     const press = function(pressed) {
-        console.log("Pressed " + pressed.keyCode);
+        msg.log("Key press ", pressed.keyCode);
         if (Object.values(action_keys).indexOf(pressed.keyCode) < 0) return;
         pressed.preventDefault();
         game.handle_event({ class: "key_press", key: pressed.keyCode });
@@ -709,7 +706,7 @@ const init_page = function() {
 
     const touch_start = function(e) {
         if (mouse_pressed) return;
-        console.log("Touch start " + e);
+        msg.log("Touch start ", e);
         const { touches } = e;
         if (touches && touches.length == 1) {
             mouse_pressed = true;
@@ -723,7 +720,7 @@ const init_page = function() {
     const swipe_limit = 20;
     const touch_move = function(e) {
         if (!mouse_pressed) return;
-        console.log("Touch move " + e);
+        msg.log("Touch move ", e);
         const x = e.touches[0].clientX;
         const y = e.touches[0].clientY;
         if (!drop && !move && mouse_y < y - swipe_limit) {
@@ -733,7 +730,6 @@ const init_page = function() {
             return;
         }
         if (!drop && Math.abs(x - mouse_x) > swipe_limit) { 
-            msg.log("Touch moved " + (x - mouse_x));
             game.handle_event({ class: "touch", direction: "move", value: x - mouse_x });
             mouse_x = x;
             move = true; // prevent other mouse actions if moving left/right
@@ -741,7 +737,7 @@ const init_page = function() {
         }
     }
     const touch_end = function(e) {
-        console.log("Touch end " + e);
+        msg.log("Touch end ", e);
         if (!move && !drop) {
             game.handle_event({ class:"touch", direction:"point"});
             e.preventDefault();
@@ -763,7 +759,7 @@ const init_page = function() {
     board_div.addEventListener('touchmove', touch_move, { passive: false });
     board_div.addEventListener('touchend', touch_end, { passive: false });
    
-    setTimeout(function() { window.scrollTo(0, 1); }, 0);
+    window.scrollTo(0, 1);
 }
         </script>
         <style>
