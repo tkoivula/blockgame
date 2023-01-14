@@ -220,6 +220,7 @@ const game = {
         if (game.state != game.states.play) return;
         const blocked = !piece.move_down_at_most(0.4 * Number(get("level")));
         if (blocked) {
+            game.state = game.states.play;
             game.freeze_current_piece();
             inc("score", (Number(get("level")) * piece.current_piece.shape.length));
             const lines = board.find_full_lines();
@@ -684,6 +685,52 @@ const piece = {
     }
 }
 
+const swipe_limit = 20;
+
+const gestures = {
+    start_x: null,
+    start_y: null,
+    event_sent: false,
+
+    init: function() {
+        const touch_div = document.getElementById("touch-area");
+        touch_div.addEventListener('touchstart', gestures.touch_start, { passive: false });
+        touch_div.addEventListener('touchmove', gestures.touch_move, { passive: false });
+        touch_div.addEventListener('touchend', gestures.touch_end, { passive: false });
+    },
+
+    touch_start: function(e) {
+        const { touches } = msg.log("Touch start ", e);
+        if (touches && touches.length == 1) {
+            [ gestures.start_x, gestures.start_y ] = [ touches[0].clientX, touches[0].clientY ];
+        }
+        gestures.event_sent = false;
+    },
+
+    touch_move: function(e) {
+        msg.log("Touch move ", e);
+        const [x,y] = [e.touches[0].clientX, e.touches[0].clientY];
+        if (gestures.start_y < y - swipe_limit) {
+            game.handle_event({ class: "touch", direction: "swipe_down" });
+            gestures.start_y = y; gestures.event_sent = true;
+            e.preventDefault();
+        }
+        else if (Math.abs(x - gestures.start_x) > swipe_limit) { 
+            game.handle_event({ class: "touch", direction: "move", value: x - gestures.start_x });
+            gestures.start_x = x; gestures.event_sent = true;
+            e.preventDefault();
+        }
+    },
+
+    touch_end: function(e) {
+        msg.log("Touch end ", e);
+        if (!gestures.event_sent) {
+            game.handle_event({ class:"touch", direction:"point"});
+            e.preventDefault();
+        }
+    }
+}
+
 // helpers to access values shown on page
 const set = function(id, value) { if (document.getElementById(id)) document.getElementById(id).innerText = value; }
 const inc = function(id, value) { set(id, Number(get(id)) + value); }
@@ -703,66 +750,11 @@ const init_page = function() {
     }
     document.addEventListener( "keydown", press, false );
 
-    const touch_start = function(e) {
-        if (mouse_pressed) return;
-        msg.log("Touch start ", e);
-        const { touches } = e;
-        if (touches && touches.length == 1) {
-            mouse_pressed = true;
-            mouse_x = touches[0].clientX;
-            mouse_y = touches[0].clientY;
-            move = false;
-            drop = false;
-            e.preventDefault();
-        }
-    }
-    const swipe_limit = 20;
-    const touch_move = function(e) {
-        if (!mouse_pressed) return;
-        msg.log("Touch move ", e);
-        const x = e.touches[0].clientX;
-        const y = e.touches[0].clientY;
-        if (!drop && !move && mouse_y < y - swipe_limit) {
-            game.handle_event({ class: "touch", direction: "swipe_down" });
-            drop = true; // prevent rotate if drop
-            e.preventDefault();
-            return;
-        }
-        if (!drop && Math.abs(x - mouse_x) > swipe_limit) { 
-            game.handle_event({ class: "touch", direction: "move", value: x - mouse_x });
-            mouse_x = x;
-            move = true; // prevent other mouse actions if moving left/right
-            e.preventDefault();
-        }
-    }
-    const touch_end = function(e) {
-        msg.log("Touch end ", e);
-        if (!move && !drop) {
-            game.handle_event({ class:"touch", direction:"point"});
-            e.preventDefault();
-        }
-        mouse_pressed = false;
-        mouse_y = null;
-        mouse_x = null;
-        move = false;
-        drop = false;
+    gestures.init();
 
-    }
-    mouse_pressed = false;
-    mouse_x = null;
-    mouse_y = null;
-    move = false; drop = false;
-
-    const board_div = document.getElementById("touch-area");
-    board_div.addEventListener('touchstart', touch_start, { passive: false });
-    board_div.addEventListener('touchmove', touch_move, { passive: false });
-    board_div.addEventListener('touchend', touch_end, { passive: false });
-   
     for (const b of document.getElementsByClassName("button")) {
         b.onclick = () => game.handle_event({class:'button', key: b.id });
     }
-
-    window.scrollTo(0, 1);
 }
         </script>
         <style>
@@ -774,28 +766,26 @@ body {
     font-family: 'Courier New', Courier, monospace;
     font-size: small;
 }
-
-a { text-decoration: none; color:white; }
+a {
+    text-decoration: none;
+    color:white;
+}
 a:hover { color: brown; }
-
 .stats {
     padding: 10px;
     margin-left: 20px;
 }
-
 .text-pane {
     padding: 10px;
     clear: both;
     max-width: 400px;
 }
-
 #header {
     background-color: grey;
     text-align: right;
     color: white;
     padding: 5px;
 }
-
 #footer {
     background-color: grey;
     text-align: center;
@@ -803,37 +793,24 @@ a:hover { color: brown; }
     margin: 30px 0px 0px 0px;
     padding: 30px;
 }
-
 #board {
     margin: 5px 0px 0px 0px;
     padding: 5px;
     text-align: center;
     float: left;
 }
-
 .score-board {
     padding: 0px 4px 4px 4px;
     text-align: center;
     float: left;
 }
-
 .score-board-vertical {
     width: 95%;
     padding: 4px 4px 0px 4px;
 }
-
-.score-board-vertical .score-box {
-    float: left;
-}
-
-.score-table .left {
-    text-align: right;
-}
-
-.score-table-right {
-    width: 20px;
-}
-
+.score-board-vertical .score-box { float: left; }
+.score-table .left { text-align: right; }
+.score-table-right { width: 20px; }
 .score-box {
     width: 80px;
     float: initial;
@@ -841,21 +818,13 @@ a:hover { color: brown; }
     padding: 4px;
     border-radius: 2px;
 }
-
-.wide {
-    width: 140px;
-}
-
-.score-box-piece {
-    height: 80px;
-}
-
+.wide { width: 140px; }
+.score-box-piece { height: 80px; }
 .piece {
     z-index: 50;
     background-color: transparent;
     position: absolute;
 }
-
 .T { background-color: purple; }
 .I { background-color: cyan; }
 .O { background-color: yellow; }
@@ -863,21 +832,15 @@ a:hover { color: brown; }
 .Z { background-color: red; }
 .L { background-color: brown; }
 .J { background-color: blue; }
-
-.shadow {
-    z-index: 10;
-}
-
-.shadow .block {
-    background-color: black;
+.shadow { z-index: 10; }
+.shadow .block { 
+    background-color: black; 
     border: 1px solid white;
 }
-
-.block {
-    position: absolute;
+.block { 
+    position: absolute; 
     border-radius: 2px;
 }
-
 .button {
     border-radius: 4px;
     padding: 5px;
@@ -886,7 +849,6 @@ a:hover { color: brown; }
     color: white;
 }
 .button:active { background-color: darkgreen; }
-
 #message-area {
     z-index: 97;
     visibility: hidden;
@@ -900,13 +862,11 @@ a:hover { color: brown; }
     justify-content: center;
     align-items: center;
 }
-
 #touch-area {
     z-index: 98;
     background-color: transparent;
     position: absolute;
 }
-
 .menu {
     z-index: 99;
     position: absolute;
@@ -917,18 +877,10 @@ a:hover { color: brown; }
     width: 300px;
     height: 300px;
 }
-
-.menu .title {
-    color: white;
-    margin: 50px 10px 50px 10px;
-}
-
-.menu .button {
-    margin: 10px 30px 10px 30px;
-}
-
-.black {
-    background-color: rgb(30, 30, 30);
+.menu .title { color: white; margin: 50px 10px 50px 10px; }
+.menu .button { margin: 10px 30px 10px 30px; }
+.black { 
+    background-color: rgb(30, 30, 30); 
     color: white;
 }
         </style>
