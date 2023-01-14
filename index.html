@@ -24,21 +24,21 @@ var blocks = [
     { id :"J", original_shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ], color: "blue" }
 ];
 
-const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72  }
+const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72, q: 81, r: 82  }
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 
-const quick_game_time = 100 * 60 * 3; // 3 min
+const quick_game_time = 50 * 60 * 3; // 3 min
 
 const game = {
-    timer: null,
+    timers: [],
     state: null,
     states: null,
     current_screen: null,
     next_piece: null,
     mem_piece: null,
     is_new_personal_best: null,
-    time_timer: null,
+    main_loop_timer: null,
     
     init: function() {
         game.states = { menu: {}, not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
@@ -63,14 +63,14 @@ const game = {
         }
 
         game.states.menu.handlers = [
-            { filter: (e) => ["new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(0); }, state: game.states.play },
-            { filter: (e) => ["new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(quick_game_time); }, state: game.states.play }
+            { filter: (e) => [action_keys.s, "new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(0); }, state: game.states.play },
+            { filter: (e) => [action_keys.q, "new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(quick_game_time); }, state: game.states.play }
         ];
         game.states.paused.handlers = [
-            { filter: (e) => [action_keys.p, "resume"].includes(e.key), screen: "play", action: game.resume, state: game.states.play },
-            { filter: (e) => ["new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(0); }, state: game.states.play },
-            { filter: (e) => ["new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game(quick_game_time); }, state: game.states.play }
+            ...game.states.menu.handlers,
+            { filter: (e) => [action_keys.p, action_keys.r, "resume"].includes(e.key), screen: "play", action: game.resume, state: game.states.play }
         ];
+
         game.states.confirm_new_game.handlers = [
             { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
         ];
@@ -114,25 +114,26 @@ const game = {
             msg.log("New game");
             score_board.clear_current_stats();
             msg.timer_on();
-            msg.refresh_time();
-            game.time_timer = window.setInterval(msg.refresh_time, 1000);
-            if (game_time > 0) {
-                msg.count_down([120, 60, 10, 3, 2, 1], game_time);
-                window.setTimeout(game.timeout, game_time);
-            }
+            const game_time = msg.refresh_time();
+            game.timers.push(window.setInterval(msg.refresh_time, 1000));
+            if (game_time > 0) game.schedule_count_down(game_time);
             game.is_new_personal_best = false;
             game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
             game.create_new_piece();
             game.state = game.states.play;
-            game.timer = window.setInterval(game.main_loop, refresh_rate);
+            game.main_loop_timer = window.setInterval(game.main_loop, refresh_rate);
         }); 
+    },
+
+    schedule_count_down: function(remaining) {
+        game.timers.push(...msg.count_down([120, 60, 10, 3, 2, 1], remaining, game.timeout));
     },
 
     restart_new_game: function(game_time = 0) {
         game.state = game.states.not_started;
-        window.clearInterval(game.timer); game.timer = null;
+        window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
-        window.clearInterval(game.time_timer); game.time_timer = null;
+        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         msg.clear_messages();
         piece.remove_shadow();
         game.start_game(game_time);
@@ -140,18 +141,21 @@ const game = {
 
     pause: function() {
         msg.timer_off();
-        window.clearInterval(game.time_timer); game.time_timer = null;
+        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         msg.log("pause");
     },
 
     resume: function() {
         msg.timer_on();
-        game.time_timer = window.setInterval(msg.refresh_time, 1000);
+        const remaining_time = msg.refresh_time();
+        game.timers.push(window.setInterval(msg.refresh_time, 1000));
+        if (remaining_time > 0) game.schedule_count_down(remaining_time);
         msg.log("resume");
     },
 
     hold_piece: function() {
         if (game.mem_piece) {
+            if (board.overlap(game.mem_piece.shape, piece.screen_x, piece.screen_y)) return; // no space
             [ piece.current_piece, game.mem_piece ] = [ game.mem_piece, piece.current_piece ];
             piece.draw_blocks(piece.current_piece, piece.piece_div);
         } else {
@@ -181,8 +185,8 @@ const game = {
 
     game_over: function() {
         msg.timer_off();
-        window.clearInterval(this.timer); this.timer = null;
-        window.clearInterval(this.time_timer); this.time_timer = null;
+        window.clearInterval(this.main_loop_timer); this.main_loop_timer = null;
+        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         this.state = game.states.game_over;
         score_board.update_and_show_current_stats();
         msg.send(["Game Over!"], "", 2000, () => {
@@ -314,13 +318,17 @@ const msg = {
         if (ds.game_time && Number(ds.game_time) > 0) {
             document.getElementById("remaining").innerText = "(" + print_duration(remaining) + ")";
         }
+        return remaining;
     },
 
-    count_down: function(times, end_time) {
+    count_down: function(times, end_time, action) {
+        handles = [];
         for (const t of times) {
             if (t * 1000 > end_time) continue;
-            window.setTimeout(() => msg.send([print_duration(t * 1000) + " left"], "", 900), end_time - (t * 1000));
+            handles.push(window.setTimeout(() => msg.send([print_duration(t * 1000) + " left"], "", 900), end_time - (t * 1000) - 1000));
         }
+        handles.push(window.setTimeout(action, end_time));
+        return handles;
     },
 
     log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
@@ -503,7 +511,6 @@ const board = {
         for (i = 0; i < current_piece.shape.length; ++i) {
             const x = position[0] + current_piece.shape[i][0] + 2;
             const y = position[1] + current_piece.shape[i][1] + 2;
-            //this.matrix[x][y] = current_piece.divs[i];
             this.matrix[x][y] = piece_div.children[i];
         }
     }
@@ -552,7 +559,6 @@ const piece = {
         const box_spaced = Math.floor(scale * box_size_spaced);
 
         var i = 0;
-        //piece.divs = [];
         if (!piece.shape) piece.shape = piece.original_shape;
         piece.shape.forEach(b => {
             const box = document.createElement("div");
@@ -565,7 +571,6 @@ const piece = {
             box.style.left = box.my_props.left + "px";
             box.style.top = box.my_props.top + "px";
             piece_div.appendChild(box);
-            //piece.divs[i++] = box;
         });
     },
 
@@ -695,7 +700,7 @@ const init_page = function() {
     msg.init();
 
     const press = function(pressed) {
-        //console.log("Pressed " + pressed.keyCode);
+        console.log("Pressed " + pressed.keyCode);
         if (Object.values(action_keys).indexOf(pressed.keyCode) < 0) return;
         pressed.preventDefault();
         game.handle_event({ class: "key_press", key: pressed.keyCode });
