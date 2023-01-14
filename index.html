@@ -7,10 +7,10 @@
         <script type = "text/javascript">
 const board_width = 10;
 const board_height = 20;
-const box_size = 22;
-const box_space = 2;
-const box_size_spaced = box_size + box_space;
-const block_size = 5 * box_size_spaced;
+const block_size = 22;
+const block_space = 2;
+const block_size_spaced = block_size + block_space;
+const piece_size = 5 * block_size_spaced;
 const margin_y = 5;
 const margin_x = 5;
 
@@ -206,7 +206,7 @@ const game = {
 
     clear_full_lines: function(lines) {
         lines.forEach((l) => board.remove_line(l));
-        board.animate_drop(lines, 0, box_size_spaced, 4, refresh_rate);
+        board.animate_drop(lines, 0, block_size_spaced, 4, refresh_rate);
     },
 
     move_left_or_right: (dx) => piece.move_left_or_right(dx < 0 ? -1 : dx > 0 ? 1 : 0),
@@ -413,8 +413,8 @@ const board = {
     init: function() {
         this.board_div = document.getElementById("board");
         this.board_div.innerHTML = "";
-        this.board_div.style.width = (box_size_spaced * board_width) + "px";
-        this.board_div.style.height = (box_size_spaced * board_height) + "px";
+        this.board_div.style.width = (block_size_spaced * board_width) + "px";
+        this.board_div.style.height = (block_size_spaced * board_height) + "px";
 
         for (div of document.getElementsByClassName("board-size")) {
             div.style.top = this.board_div.offsetTop + "px";
@@ -452,8 +452,8 @@ const board = {
 
     remove_line: function(y) {
         for (var x = 1; x < this.matrix.length - 1; ++x) {
-            var box_div = this.matrix[x][y];
-            box_div.parentElement.removeChild(box_div);
+            var block_div = this.matrix[x][y];
+            block_div.parentElement.removeChild(block_div);
             this.matrix[x][y] = 0;
         }
     },
@@ -461,8 +461,8 @@ const board = {
     drop_above: function(y) {
         for (var x = 1; x < this.matrix.length - 1; ++x) {
             for (var yy = y - 1; yy > 0; --yy) {
-                var box2 = this.matrix[x][yy];
-                this.matrix[x][yy + 1] = box2;
+                var block2 = this.matrix[x][yy];
+                this.matrix[x][yy + 1] = block2;
             }
         }
     },
@@ -471,10 +471,10 @@ const board = {
         lines.forEach((y) => {
             for (var x = 1; x < this.matrix.length - 1; ++x) {
                 for (var yy = y - 1; yy > 0; --yy) {
-                    var box2 = this.matrix[x][yy];
-                    if (box2.my_props) {
-                        box2.my_props.top += step;
-                        box2.style.top = box2.my_props.top + "px";
+                    var block2 = this.matrix[x][yy];
+                    if (block2.my_props) {
+                        block2.my_props.top += step;
+                        block2.style.top = block2.my_props.top + "px";
                     }   
                 }
             }
@@ -491,7 +491,7 @@ const board = {
     },
 
     position_in_matrix: function(x, y) {
-        return [ Math.floor(x / box_size_spaced) + 1, Math.floor(y / box_size_spaced) + 4 ];
+        return [ Math.floor(x / block_size_spaced) + 1, Math.floor(y / block_size_spaced) + 4 ];
     },
 
     overlap: function(shape, screen_x, screen_y) {
@@ -525,8 +525,8 @@ const piece = {
         this.piece_div = document.createElement( "div" );
         this.piece_div.className = "piece";
         this.current_piece = piece;
-        this.screen_x = ((board_width / 2) - 3) * box_size_spaced;
-        this.screen_y = -1 * box_size_spaced;
+        this.screen_x = ((board_width / 2) - 3) * block_size_spaced;
+        this.screen_y = -1 * block_size_spaced;
         if (!piece.shape) piece.shape = piece.original_shape;
         // prevent overlapping on screen in case half of the piece would be visible
         const has_room = !board.overlap(this.current_piece.shape, this.screen_x, this.screen_y - 1)
@@ -553,23 +553,23 @@ const piece = {
         while (piece_div.lastElementChild) {
             piece_div.removeChild(piece_div.lastElementChild);
         }
+        const piece_s = Math.floor(scale * piece_size);
         const block_s = Math.floor(scale * block_size);
-        const box_s = Math.floor(scale * box_size);
-        const box_spaced = Math.floor(scale * box_size_spaced);
+        const block_spaced = Math.floor(scale * block_size_spaced);
 
         var i = 0;
         if (!piece.shape) piece.shape = piece.original_shape;
         piece.shape.forEach(b => {
-            const box = document.createElement("div");
-            box.className = "box " + piece.id;
-            box.style.width = box_s + "px";
-            box.style.height = box_s + "px";
-            box.my_props = {};
-            box.my_props.left = ((block_s / 2) - (box_spaced / 2) + (box_spaced * b[0])) + left;
-            box.my_props.top = ((block_s / 2) - (box_spaced / 2) + (box_spaced * b[1])) + top;
-            box.style.left = box.my_props.left + "px";
-            box.style.top = box.my_props.top + "px";
-            piece_div.appendChild(box);
+            const block = document.createElement("div");
+            block.className = "block " + piece.id;
+            block.style.width = block_s + "px";
+            block.style.height = block_s + "px";
+            block.my_props = {};
+            block.my_props.left = ((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[0])) + left;
+            block.my_props.top = ((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[1])) + top;
+            block.style.left = block.my_props.left + "px";
+            block.style.top = block.my_props.top + "px";
+            piece_div.appendChild(block);
         });
     },
 
@@ -611,15 +611,15 @@ const piece = {
     move_and_draw: function(dx, dy) {
         this.screen_x += dx;
         this.screen_y += dy;
-        this.piece_div.style.width = block_size + "px";
-        this.piece_div.style.height = block_size + "px";
+        this.piece_div.style.width = piece_size + "px";
+        this.piece_div.style.height = piece_size + "px";
         this.piece_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y) + "px";
         this.piece_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
     },
 
     move_left_or_right: function(dx) {
-        if (this.can_move(dx * box_size_spaced, 0)) {
-            this.move_and_draw(dx * box_size_spaced, 0);
+        if (this.can_move(dx * block_size_spaced, 0)) {
+            this.move_and_draw(dx * block_size_spaced, 0);
             this.draw_shadow();
         }
     },
@@ -630,7 +630,7 @@ const piece = {
             return true;
         } else {
             // try with remaining portion
-            dy = box_size_spaced - ((this.screen_y + (4 * box_size_spaced)) % box_size_spaced) - 1;
+            dy = block_size_spaced - ((this.screen_y + (4 * block_size_spaced)) % block_size_spaced) - 1;
             if (dy < 1) { piece.remove_shadow(); return false; }
             if (this.can_move(0, dy)) {
                 this.move_and_draw(0, dy);
@@ -647,11 +647,11 @@ const piece = {
         if (!this.shadow_div) {
             this.shadow_div = document.createElement( "div" );
             this.shadow_div.className = "piece shadow";
-            this.shadow_div.style.width = block_size + "px";
-            this.shadow_div.style.height = block_size + "px";
+            this.shadow_div.style.width = piece_size + "px";
+            this.shadow_div.style.height = piece_size + "px";
             document.getElementById("board").appendChild( this.shadow_div );
         }
-        var dy = box_size_spaced; var step = box_size_spaced;
+        var dy = block_size_spaced; var step = block_size_spaced;
         while (true) {
             if (board.overlap(this.current_piece.shape, this.screen_x, this.screen_y + dy)) {
                 dy -= step;
@@ -660,7 +660,7 @@ const piece = {
             }
             dy += step;
         }
-        if (dy < (2 * box_size_spaced)) { this.remove_shadow(); return } // too close
+        if (dy < (2 * block_size_spaced)) { this.remove_shadow(); return } // too close
         this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y + dy) + "px";
         this.shadow_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
         this.draw_blocks(this.current_piece, this.shadow_div);
@@ -679,7 +679,7 @@ const piece = {
 
     drop: function() {
         this.remove_shadow();
-        while (piece.move_down_at_most(box_size_spaced)) {
+        while (piece.move_down_at_most(block_size_spaced)) {
         }
     }
 }
@@ -874,12 +874,12 @@ a {
     z-index: 10;
 }
 
-.shadow .box {
+.shadow .block {
     background-color: black;
     border: 1px solid white;
 }
 
-.box {
+.block {
     position: absolute;
     border-radius: 2px;
 }
