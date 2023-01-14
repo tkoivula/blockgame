@@ -267,7 +267,7 @@ const msg = {
     draw_next_message: function() {
         if (msg.queue.length == 0 || msg.current_entry) return;
         msg.current_entry = msg.queue.shift();
-        const div = document.getElementById("message");
+        const div = document.getElementById("message-area");
         div.className = "message " + msg.current_entry.type;
         div.style.visibility = "visible";
         div.innerText = msg.current_entry.message;
@@ -278,7 +278,7 @@ const msg = {
         const entry = msg.current_entry;
         msg.current_entry = null;  
         if (entry && entry.after_action) entry.after_action();
-        const div = document.getElementById("message");
+        const div = document.getElementById("message-area");
         div.style.visibility = "hidden";
         div.innerText = "";
     },
@@ -355,7 +355,6 @@ parse_duration = function(str) {
 
 const score_board = {
     item_name: "stats-1.0",
-    //fields: [ "time", "level", "score", "lines", "lines_4", "lines_3", "lines_2", "lines_1" ],
     initial_overall_stats:
         { games: 0, time: 0, first_game: Date.now(), score: 0, level: 0, lines: 0, lines_4: 0},
     ot_stats: null,
@@ -367,13 +366,13 @@ const score_board = {
     },
 
     clear_current_stats: function() {
-        for (elem of document.getElementsByClassName("game-value")) {
+        for (elem of document.getElementsByClassName("data-value")) {
             elem.innerText = elem.dataset.default ? elem.dataset.default : "0";
         }
     },
 
     update_and_show_current_stats: function(stats = {}) {
-        for (elem of document.getElementsByClassName("game-value")) {
+        for (elem of document.getElementsByClassName("data-value")) {
             stats[elem.id] = elem.innerText;
         }
         msg.log_json("Stats ", stats);
@@ -786,7 +785,7 @@ a {
     color: black;
 }
 
-.container {
+.text-pane {
     padding: 10px;
     clear: both;
     max-width: 400px;
@@ -824,7 +823,7 @@ a {
     padding: 4px 4px 0px 4px;
 }
 
-.score-board-vertical .infoline {
+.score-board-vertical .score-box {
     float: left;
 }
 
@@ -836,7 +835,7 @@ a {
     width: 20px;
 }
 
-.infoline {
+.score-box {
     width: 80px;
     float: initial;
     margin: 4px;
@@ -893,7 +892,7 @@ a {
     color: white;
 }
 
-.message {
+#message-area {
     z-index: 97;
     visibility: hidden;
     background-color: transparent;
@@ -937,10 +936,6 @@ a {
     background-color: rgb(30, 30, 30);
     color: white;
 }
-
-#remaining-container {
-    visibility: hidden;
-}
         </style>
     </head>
     <body onload="init_page()">
@@ -959,63 +954,63 @@ a {
                 <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>
             </div>
             <div id="touch-area" class="board-size"></div>
-            <div id="message" class="message black board-size"></div>
+            <div id="message-area" class="message black board-size"></div>
             <div class="score-board score-board-vertical">
-                <div class="infoline black">Score:<br/> <span id="score" class="game-value">0</span></div>
-                <div class="infoline black wide">Time:<br/>
-                    <span id="time" data-default="00:00" class="game-value">00:00</span>
-                    <span id="remaining" data-default=" " class="game-value"></span>
+                <div class="score-box black">Score:<br/> <span id="score" class="data-value">0</span></div>
+                <div class="score-box black wide">Time:<br/>
+                    <span id="time" data-default="00:00" class="data-value">00:00</span>
+                    <span id="remaining" data-default=" " class="data-value"></span>
                 </div>
-                <div class="infoline black right">Best:<br/> <span id="best">0</span></div>
+                <div class="score-box black right">Best:<br/> <span id="best">0</span></div>
             </div>
             <div class="score-board">
-                <div class="infoline black">Level:<br/> <span id="level" data-default="1" class="game-value">0</span></div>
-                <div class="infoline next black">Next piece:<br/> <span id="next-piece"></span></div>
-                <div class="infoline black">
+                <div class="score-box black">Level:<br/> <span id="level" data-default="1" class="data-value">0</span></div>
+                <div class="score-box next black">Next piece:<br/> <span id="next-piece"></span></div>
+                <div class="score-box black">
                     <table class="score-table"><tbody>  
-                        <tr><td>Lines:</td> <td id="lines" class="game-value">0</td></tr>
-                        <tr><td class="left">4x:</td><td id="lines_4" class="game-value">0</td></tr>
-                        <tr><td class="left">3x:</td><td id="lines_3" class="game-value">0 </td></tr>
-                        <tr><td class="left">2x:</td><td id="lines_2" class="game-value">0</td></tr>
-                        <tr><td class="left">1x:</td><td id="lines_1" class="game-value">0</td></tr>
+                        <tr><td>Lines:</td> <td id="lines" class="data-value">0</td></tr>
+                        <tr><td class="left">4x:</td><td id="lines_4" class="data-value">0</td></tr>
+                        <tr><td class="left">3x:</td><td id="lines_3" class="data-value">0 </td></tr>
+                        <tr><td class="left">2x:</td><td id="lines_2" class="data-value">0</td></tr>
+                        <tr><td class="left">1x:</td><td id="lines_1" class="data-value">0</td></tr>
                     </tbody></table>
                 </div>
-                <div class="infoline next black" onclick="game.handle_event({class:'button', key:'hold' });">
+                <div class="score-box next black" onclick="game.handle_event({class:'button', key:'hold' });">
                     Hold:<br/><span id="mem-piece"></span>
                 </div>
-                <div class="infoline">
+                <div class="score-box">
                     <div class="button" onclick="game.handle_event({class:'button', key:'hold' });">Hold</div><br/>
                     <div class="button" onclick="game.handle_event({class:'button', key:'pause' });">Pause</div><br/>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
         </div>
-        <div class="container">
+        <div class="text-pane">
             <h1>Block game</h1>
             <p>This is a free time hobby project for myself. I was tired of ads in Tetris
                 games and decided to make my own minimalistic game.</p>
             <p>This game is implemented entirely with JavaScript and HTML without any
                 additional libraries.</p>
         </div>
-        <div class="container">
+        <div class="text-pane">
             <h2>Statistics</h2>
             <h3>Previous game</h3>
             <p>Here are the statistics from your previous game:</p>
             <table class="stats black">
                 <colgroup><col/><col style="width:100px;"/></colgroup>
                 <tbody>  
-                    <tr><td>Time:</td><td id="previous-time" class="game-value"></td></tr>
-                    <tr><td>Score:</td><td id="previous-score" class="game-value"></td></tr>
-                    <tr><td>Level:</td><td id="previous-level" data-default="1" class="game-value"></td></tr>
-                    <tr><td>4-line combos:</td><td id="previous-lines_4" class="game-value"></td></tr>
-                    <tr><td>3-line combos:</td><td id="previous-lines_3" class="game-value"></td></tr>
-                    <tr><td>2-line combos:</td><td id="previous-lines_2" class="game-value"></td></tr>
-                    <tr><td>Single lines:</td><td id="previous-lines_1" class="game-value"></td></tr>
-                    <tr><td>Lines:</td><td id="previous-lines" class="game-value"></td></tr>
+                    <tr><td>Time:</td><td id="previous-time" class="data-value"></td></tr>
+                    <tr><td>Score:</td><td id="previous-score" class="data-value"></td></tr>
+                    <tr><td>Level:</td><td id="previous-level" data-default="1" class="data-value"></td></tr>
+                    <tr><td>4-line combos:</td><td id="previous-lines_4" class="data-value"></td></tr>
+                    <tr><td>3-line combos:</td><td id="previous-lines_3" class="data-value"></td></tr>
+                    <tr><td>2-line combos:</td><td id="previous-lines_2" class="data-value"></td></tr>
+                    <tr><td>Single lines:</td><td id="previous-lines_1" class="data-value"></td></tr>
+                    <tr><td>Lines:</td><td id="previous-lines" class="data-value"></td></tr>
                 </tbody>
             </table>
         </div>
-        <div class="container">
+        <div class="text-pane">
             <h3>Overall statistics</h2>
             <p>Here are your overall statistics:</p>
             <table class="stats black">
