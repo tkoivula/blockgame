@@ -15,13 +15,13 @@ const margin_y = 5;
 const margin_x = 5;
 
 var blocks = [
-    { id: "T", original_shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ], color: "purple" },
-    { id: "I", original_shape: [ [-1, -1], [0, -1], [1, -1], [2, -1] ], color: "cyan" },
-    { id: "S", original_shape: [ [-1, 0], [0, 0], [0, -1], [1, -1] ], color: "green" },
-    { id: "Z", original_shape: [ [-1, -1], [0, -1], [0, 0], [1, 0] ], color: "red" },
-    { id: "O", original_shape: [ [-1, -1], [0, -1], [-1, 0], [0, 0] ], color: "yellow" },
-    { id: "L", original_shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ], color: "brown" },
-    { id :"J", original_shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ], color: "blue" }
+    { id: "T", original_shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ] },
+    { id: "I", original_shape: [ [-1, -1], [0, -1], [1, -1], [2, -1] ] },
+    { id: "S", original_shape: [ [-1, 0], [0, 0], [0, -1], [1, -1] ] },
+    { id: "Z", original_shape: [ [-1, -1], [0, -1], [0, 0], [1, 0] ] },
+    { id: "O", original_shape: [ [-1, -1], [0, -1], [-1, 0], [0, 0] ] },
+    { id: "L", original_shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ] },
+    { id :"J", original_shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ] }
 ];
 
 const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72, q: 81, r: 82  }
@@ -758,6 +758,10 @@ const init_page = function() {
     board_div.addEventListener('touchmove', touch_move, { passive: false });
     board_div.addEventListener('touchend', touch_end, { passive: false });
    
+    for (const b of document.getElementsByClassName("button")) {
+        b.onclick = () => game.handle_event({class:'button', key: b.id });
+    }
+
     window.scrollTo(0, 1);
 }
         </script>
@@ -771,18 +775,12 @@ body {
     font-size: small;
 }
 
-a {
-    color:white;
-}
+a { text-decoration: none; color:white; }
+a:hover { color: brown; }
 
 .stats {
     padding: 10px;
     margin-left: 20px;
-}
-
-.bg {
-    background-color: rgb(153, 157, 144);
-    color: black;
 }
 
 .text-pane {
@@ -802,7 +800,8 @@ a {
     background-color: grey;
     text-align: center;
     color: white;
-    padding: 10px;
+    margin: 30px 0px 0px 0px;
+    padding: 30px;
 }
 
 #board {
@@ -847,13 +846,8 @@ a {
     width: 140px;
 }
 
-
-.next {
+.score-box-piece {
     height: 80px;
-}
-
-.mem {
-    height: 120px;
 }
 
 .piece {
@@ -891,6 +885,7 @@ a {
     border: 2px solid darkgreen;
     color: white;
 }
+.button:active { background-color: darkgreen; }
 
 #message-area {
     z-index: 97;
@@ -941,17 +936,15 @@ a {
     <body onload="init_page()">
         <div id="main">
             <div id="menu-div" data-screen="menu" class="menu board-size">
-                <div class="title">Block Game</div>
-                <br/><br/>
-                <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Standard Game</div>
-                <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>o
+                <div class="title">Block Game</div><br/><br/>
+                <div id="new_game" class="button">New Standard Game</div>
+                <div id="new_quick_game" class="button">New Quick Game</div>o
             </div>
             <div id="pause-div" data-screen="pause" class="menu board-size">
                 <div class="title">Paused</div>
-                <div class="button" onclick="game.handle_event({class:'button', key:'resume'})">Resume</div>
-                <br/><br/>
-                <div class="button" onclick="game.handle_event({class:'button', key:'new_game'})">New Standard Game</div>
-                <div class="button" onclick="game.handle_event({class:'button', key:'new_quick_game'})">New Quick Game</div>
+                <div id="resume" class="button">Resume</div><br/><br/>
+                <div id="new_game" class="button">New Standard Game</div>
+                <div id="new_quick_game" class="button">New Quick Game</div>
             </div>
             <div id="touch-area" class="board-size"></div>
             <div id="message-area" class="message black board-size"></div>
@@ -965,7 +958,7 @@ a {
             </div>
             <div class="score-board">
                 <div class="score-box black">Level:<br/> <span id="level" data-default="1" class="data-value">0</span></div>
-                <div class="score-box next black">Next piece:<br/> <span id="next-piece"></span></div>
+                <div class="score-box score-box-piece black">Next piece:<br/> <span id="next-piece"></span></div>
                 <div class="score-box black">
                     <table class="score-table"><tbody>  
                         <tr><td>Lines:</td> <td id="lines" class="data-value">0</td></tr>
@@ -975,12 +968,12 @@ a {
                         <tr><td class="left">1x:</td><td id="lines_1" class="data-value">0</td></tr>
                     </tbody></table>
                 </div>
-                <div class="score-box next black" onclick="game.handle_event({class:'button', key:'hold' });">
+                <div class="score-box score-box-piece black" onclick="game.handle_event({class:'button', key:'hold' });">
                     Hold:<br/><span id="mem-piece"></span>
                 </div>
                 <div class="score-box">
-                    <div class="button" onclick="game.handle_event({class:'button', key:'hold' });">Hold</div><br/>
-                    <div class="button" onclick="game.handle_event({class:'button', key:'pause' });">Pause</div><br/>
+                    <div id="hold" class="button">Hold</div><br/>
+                    <div id="pause" class="button">Pause</div><br/>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
