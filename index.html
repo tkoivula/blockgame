@@ -703,14 +703,15 @@ const gestures = {
         const { touches } = msg.log("Touch start ", e);
         if (touches && touches.length == 1) {
             [ gestures.start_x, gestures.start_y ] = [ touches[0].clientX, touches[0].clientY ];
+            gestures.event_sent = false;
+            e.preventDefault();
         }
-        gestures.event_sent = false;
     },
 
     touch_move: function(e) {
         msg.log("Touch move ", e);
         const [x,y] = [e.touches[0].clientX, e.touches[0].clientY];
-        if (gestures.start_y < y - swipe_limit) {
+        if (!gestures.event_sent && gestures.start_y < y - swipe_limit) {
             game.handle_event({ class: "touch", direction: "swipe_down" });
             gestures.start_y = y; gestures.event_sent = true;
             e.preventDefault();
@@ -736,12 +737,13 @@ const set = function(id, value) { if (document.getElementById(id)) document.getE
 const inc = function(id, value) { set(id, Number(get(id)) + value); }
 const get = function(id) { return document.getElementById(id) ? document.getElementById(id).innerText : null; }
 
-const init_page = function() {
-    score_board.init();
-    game.init();
-    board.init();
-    msg.init();
+const buttons_init = function() {
+    for (const b of document.getElementsByClassName("button")) {
+        b.onclick = () => game.handle_event({class:'button', key: b.id });
+    }
+}
 
+const keyboard_init = function() {
     const press = function(pressed) {
         msg.log("Key press ", pressed.keyCode);
         if (Object.values(action_keys).indexOf(pressed.keyCode) < 0) return;
@@ -749,12 +751,16 @@ const init_page = function() {
         game.handle_event({ class: "key_press", key: pressed.keyCode });
     }
     document.addEventListener( "keydown", press, false );
+}
 
+const init_page = function() {
+    score_board.init();
+    game.init();
+    board.init();
+    msg.init();
+    keyboard_init();
     gestures.init();
-
-    for (const b of document.getElementsByClassName("button")) {
-        b.onclick = () => game.handle_event({class:'button', key: b.id });
-    }
+    buttons_init();
 }
         </script>
         <style>
