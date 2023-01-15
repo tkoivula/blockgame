@@ -116,7 +116,7 @@ const game = {
         msg.send(["3", "2", "1"], "", 500);
         msg.send(["Play!"], "", 1000, () => {
             msg.log("New game");
-            score_board.clear_current_stats();
+            score_board.clear_current_stats(game_mode);
             msg.timer_on();
             const game_time = msg.refresh_time();
             game.timers.push(window.setInterval(msg.refresh_time, 1000));
@@ -315,16 +315,12 @@ const msg = {
 
     refresh_time: function() {
         const ds = document.getElementById("main").dataset;
-        var total = 0;
-        if (ds.elapsed_time) total = Number(ds.elapsed_time);
+        var total = ds.elapsed_time ? Number(ds.elapsed_time) : 0;
         if (ds.start_time) total = total + (Date.now() - Number(ds.start_time));
         var remaining = Number(ds.game_time) - total; 
-
         set("time", total);
-        //document.getElementById("time").innerText = print_duration(total);
         if (ds.game_time && Number(ds.game_time) > 0) {
             set("remaining", remaining);
-            //document.getElementById("remaining").innerText = "(" + print_duration(remaining) + ")";
         }
         return remaining;
     },
@@ -333,7 +329,7 @@ const msg = {
         handles = [];
         for (const t of times) {
             if (t * 1000 > end_time) continue;
-            handles.push(window.setTimeout(() => msg.send([print_duration(t * 1000) + " left"], "", 900), end_time - (t * 1000) - 1000));
+            handles.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", 900), end_time - (t * 1000) - 1000));
         }
         handles.push(window.setTimeout(action, end_time));
         return handles;
@@ -343,45 +339,20 @@ const msg = {
     log_json: debug ? (msg, json) => { console.log(msg + JSON.stringify(json)); return json; } : (msg, json) => json
 }
 
-print_duration = function(msec) {
-    /*
-    var sec = Math.floor(msec / 1000);
-    var min = Math.floor(sec / 60); sec -= (min * 60);
-    var hour = Math.floor(min / 60); min -= (hour * 60);
-    const h = hour > 0 ? hour + ":" : "";
-    const mm = min < 10 ? "0" + min : min;
-    const ss = sec < 10 ? "0" + sec : sec;
-    return h + mm + ":" + ss;
-    */
-    return new Date(msec).toISOString().substr(11, 8).replace(/^[0]+[0:]/, "")
-}
-
-/*
-parse_duration = function(str) {
-    const arr = str.split(":");
-    var time = 0; var i = 0;
-    if (arr.length > 2) time += Number(arr[i++]) * 60 * 60;  
-    if (arr.length > 1) time += Number(arr[i++]) * 60;
-    return (time + Number(arr[i])) * 1000;
-}
-*/
-
 const score_board = {
     item_name: "stats-6",
-    /*initial_overall_stats:
-        { games: 0, time: 0, first_game: Date.now(), score: 0, level: 0, lines: 0, lines_4: 0},*/
     ot_stats: null,
 
     init: function() {
         const str = localStorage.getItem(this.item_name);
-        this.ot_stats = str ? JSON.parse(str) : {} /*this.initial_overall_stats*/;
+        this.ot_stats = str ? JSON.parse(str) : {};
         this.show_overall_stats();
     },
 
-    clear_current_stats: function() {
+    clear_current_stats: function(game_mode) {
+        if (this.ot_stats[game_mode] &&  this.ot_stats[game_mode].score) set("best", this.ot_stats[game_mode].score);
         for (elem of document.getElementsByClassName("data-value")) {
             set(elem.id, elem.dataset.default ? elem.dataset.default : 0);
-            //elem.innerText = elem.dataset.default ? elem.dataset.default : "0";
         }
     },
 
@@ -411,7 +382,6 @@ const score_board = {
 
     show_overall_stats: function() {
         const ot = msg.log_json("Overall stats: ", this.ot_stats );
-        set("best", ot.score);
         for (const mode of Object.keys(game_modes)) {
             if (!ot[mode]) continue;
             for (key of Object.keys(ot[mode])) set("ot-" + mode + "-" + key, ot[mode][key]);
@@ -914,6 +884,11 @@ a:hover { color: brown; }
     background-color: rgb(30, 30, 30); 
     color: white;
 }
+#version {
+    font-size: x-small;
+    margin-top: 40px;
+    vertical-align: bottom;
+}
         </style>
     </head>
     <body onload="init_page()">
@@ -937,7 +912,7 @@ a:hover { color: brown; }
                     <span id="time" data-format="duration" class="data-value">00:00</span>
                     (<span id="remaining" data-format="duration" class="data-value"></span>)
                 </div>
-                <div class="score-box black right">Best:<br/> <span id="best">0</span></div>
+                <div class="score-box black right">Best:<br/> <span id="best">see below</span></div>
             </div>
             <div class="score-board">
                 <div class="score-box black">Level:<br/> <span id="level" data-default="1" class="data-value">0</span></div>
@@ -957,6 +932,7 @@ a:hover { color: brown; }
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
+                    <div id="version">v. 0.1.12</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
