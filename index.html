@@ -5,16 +5,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title> Block game </title>
         <script type = "text/javascript">
-const board_width = 10;
-const board_height = 20;
+const [ board_width, board_height ] = [ 10, 20 ];
 const block_size = 22;
 const block_space = 2;
 const block_size_spaced = block_size + block_space;
 const piece_size = 5 * block_size_spaced;
-const margin_y = 5;
-const margin_x = 5;
-
-var block_types = [
+const margin_y = margin_x = 5;
+const block_types = [
     { id: "T", shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ] },
     { id: "I", shape: [ [-1, -1], [0, -1], [1, -1], [2, -1] ] },
     { id: "S", shape: [ [-1, 0], [0, 0], [0, -1], [1, -1] ] },
@@ -23,11 +20,9 @@ var block_types = [
     { id: "L", shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ] },
     { id :"J", shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ] }
 ];
-
 const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72, q: 81, r: 82  }
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
-
 const game_modes = {
     standard: { game_time: 0 },
     quick: { game_time: 1000 * 60 * 3 }
@@ -126,7 +121,6 @@ const game = {
         window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
         msg.clear_messages();
-        piece.remove_shadow();
         game.start_game(game_mode);
     },
 
@@ -142,17 +136,18 @@ const game = {
     switch_hold_piece: function() {
         if (game.hold_piece) {
             if (board.overlap(game.hold_piece.geometry.shape, game.current_piece.screen_x, game.current_piece.screen_y)) return; // no space
+            if (game.current_piece.shadow) piece.remove_shadow(game.current_piece.shadow);
             [ game.current_piece.geometry, game.hold_piece.geometry ] = [ game.hold_piece.geometry, game.current_piece.geometry ];
+            piece.create_shadow(game.current_piece);
             piece.draw_blocks(game.current_piece, game.current_piece.div);
         } else {
+            if (game.current_piece.shadow) piece.remove_shadow(game.current_piece.shadow);
             game.current_piece.div.parentNode.removeChild(game.current_piece.div);
             game.hold_piece = { ...game.current_piece };
             game.create_new_piece();
-        }   
+        }
         game.hold_piece.geometry.shape = game.hold_piece.geometry.original_shape; // reset orientation
-        //piece.draw_piece(game.hold_piece, "hold-piece", -5, 20, 0.8);
-        piece.draw_blocks(game.hold_piece, document.getElementById("hold-piece"), 0, 0, 0.75);
-        piece.draw_shadow(game.current_piece);
+        piece.draw_blocks(game.hold_piece, document.getElementById("hold-piece"), false, 0, 0, 0.75);
     },
 
     clear_hold_piece: function() {
@@ -169,8 +164,7 @@ const game = {
         // create new next piece:
         this.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
         this.next_piece.geometry.original_shape = [...this.next_piece.geometry.shape]; 
-        //piece.draw_piece(this.next_piece, "next-piece", -5, 20, 0.8);
-        piece.draw_blocks(this.next_piece, document.getElementById("next-piece"), 0, 0, 0.75);
+        piece.draw_blocks(this.next_piece, document.getElementById("next-piece"), false, 0, 0, 0.75);
     },
 
     is_current_piece_in_valid_position: function() {
@@ -242,7 +236,6 @@ const game = {
 }
 
 const msg = {
-
     queue: [],
     current_entry: null,
     timers: [],
@@ -381,7 +374,6 @@ const score_board = {
 }
 
 const board = {
-
     matrix: [],
     board_div: null,
 
@@ -397,7 +389,6 @@ const board = {
             div.style.width = this.board_div.offsetWidth + "px";
             div.style.height = this.board_div.offsetHeight + "px";            
         }
-
         // 1 col outside left and 1 col outside right 
         for (var i = 0; i < board_width + 2; ++i) {
             this.matrix[i] = [];
@@ -500,14 +491,14 @@ const piece = {
         const has_room = !board.overlap(piece.geometry.shape, piece.screen_x, piece.screen_y - 1)
         if (has_room) {
             document.getElementById("board").appendChild( piece.div );
+            piece.shadow = this.create_shadow(piece);
             this.draw_blocks(piece, piece.div);
             this.move_and_draw(piece, 0, 0);
-            piece.shadow = this.draw_shadow(piece);
         }
         return piece;
     },
 
-    draw_blocks: function(piece, div, left = 0, top = 0, scale = 1.0) {
+    draw_blocks: function(piece, div, draw_shadow = true, left = 0, top = 0, scale = 1.0) {
         while (div.lastElementChild) div.removeChild(div.lastElementChild);
         const piece_s = Math.floor(scale * piece_size);
         const block_s = Math.floor(scale * block_size);
@@ -521,6 +512,7 @@ const piece = {
             block.style.top = (((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[1])) + top) + "px";
             div.appendChild(block);
         });
+        if (draw_shadow && piece.shadow) this.draw_shadow(piece);
     },
 
     can_rotate: function(piece, rotated_shape) {
@@ -529,8 +521,7 @@ const piece = {
         for (const movement of [ 0, 1, -1, 2, -2, 3, -3 ]) {
             if (this.can_move(piece, movement * block_size_spaced, 0) &&
                 !board.overlap_grid(rotated_shape, [pos[0] +  movement, pos[1]])) {
-                    this.move_and_draw(piece, movement * block_size_spaced, 0);
-                    return true;
+                    return { with_movement: movement * block_size_spaced };
             }
         }
         return false;
@@ -538,10 +529,11 @@ const piece = {
 
     rotate: function(piece, direction) {
         const rotated = piece.geometry.shape.map(b => direction == -1 ? [b[1], -1 * b[0]] : [-1 * b[1], b[0]]);
-        if (this.can_rotate(piece, rotated)) {
+        const can_rotate = this.can_rotate(piece, rotated);
+        if (can_rotate) {
+            if (can_rotate.with_movement) this.move_and_draw(piece, can_rotate.with_movement, 0);
             piece.geometry.shape = rotated;
             this.draw_blocks(piece, piece.div);
-            this.draw_shadow(piece);
         }
     },
 
@@ -561,12 +553,12 @@ const piece = {
         piece.screen_y += dy;
         piece.div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y) + "px";
         piece.div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
+        if (dx != 0 && piece.shadow) this.draw_shadow(piece);
     },
 
     move_left_or_right: function(piece, dx) {
         if (this.can_move(piece, dx * block_size_spaced, 0)) {
             this.move_and_draw(piece, dx * block_size_spaced, 0);
-            this.draw_shadow(piece);
         }
     },
 
@@ -587,14 +579,16 @@ const piece = {
         return false;
     },
 
+    create_shadow: function(piece) {
+        piece.shadow = document.createElement( "div");
+        piece.shadow.className = "piece shadow";
+        piece.shadow.style.width = piece_size + "px";
+        piece.shadow.style.height = piece_size + "px";
+        document.getElementById("board").appendChild( piece.shadow );
+        return piece.shadow;
+    },
+
     draw_shadow: function(piece) {
-        if (!piece.shadow) {
-            piece.shadow = document.createElement( "div");
-            piece.shadow.className = "piece shadow";
-            piece.shadow.style.width = piece_size + "px";
-            piece.shadow.style.height = piece_size + "px";
-            document.getElementById("board").appendChild( piece.shadow );
-        }
         var dy = block_size_spaced; var step = block_size_spaced;
         while (true) {
             if (board.overlap(piece.geometry.shape, piece.screen_x, piece.screen_y + dy)) {
@@ -604,11 +598,10 @@ const piece = {
             }
             dy += step;
         }
-        if (dy < (2 * block_size_spaced)) { this.remove_shadow(piece.shadow); return piece.shadow; } // too close
+        if (dy < (2 * block_size_spaced)) { this.remove_shadow(piece.shadow); return; } // too close
         piece.shadow.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y + dy) + "px";
         piece.shadow.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
-        this.draw_blocks(piece, piece.shadow);
-        return piece.shadow;
+        this.draw_blocks(piece, piece.shadow, false);
     },
 
     remove_shadow: function(shadow_div) {
@@ -616,11 +609,7 @@ const piece = {
         shadow_div.parentElement.removeChild(shadow_div);
     },
 
-    drop: function(piece) {
-        this.remove_shadow(piece.shadow);
-        while (this.move_down_at_most(piece, block_size_spaced)) {
-        }
-    }
+    drop: function(piece) { while (this.move_down_at_most(piece, block_size_spaced)) {} }
 }
 
 const swipe_limit = 20;
@@ -788,8 +777,8 @@ a:hover { color: brown; }
 .J { background-color: blue; }
 .shadow { z-index: 10; }
 .shadow .block { 
-    background-color: black; 
-    border: 1px solid white;
+    background-color: rgb(40, 40, 40); 
+    border: 1px dashed grey;
 }
 .block { 
     position: absolute; 
@@ -824,7 +813,7 @@ a:hover { color: brown; }
 .menu {
     z-index: 99;
     position: absolute;
-    background-color: rgba(30, 30, 30, 0.7);
+    background-color: rgba(40, 40, 40, 0.7);
     top: 100px;
     vertical-align: center;
     text-align: center;
@@ -834,12 +823,12 @@ a:hover { color: brown; }
 .menu .title { color: white; margin: 50px 10px 50px 10px; }
 .menu .button { margin: 10px 30px 10px 30px; }
 .black { 
-    background-color: rgb(30, 30, 30); 
+    background-color: rgb(40, 40, 40); 
     color: white;
 }
 #version {
     font-size: x-small;
-    margin-top: 40px;
+    margin-top: 20px;
     vertical-align: bottom;
 }
         </style>
@@ -869,7 +858,9 @@ a:hover { color: brown; }
             </div>
             <div class="score-board">
                 <div class="score-box black">Level:<br/> <span id="level" data-default="1" class="data-value">0</span></div>
-                <div class="score-box score-box-piece black">Next piece:<div id="next-piece" class="piece"></div></div>
+                <div class="score-box score-box-piece black" onclick="game.handle_event({class:'button', key:'hold' });">
+                    Hold:<div id="hold-piece" class="piece"></div>
+                </div>
                 <div class="score-box black">
                     <table class="score-table"><tbody>  
                         <tr><td>Lines:</td> <td id="lines" class="data-value">0</td></tr>
@@ -879,13 +870,11 @@ a:hover { color: brown; }
                         <tr><td class="left">1x:</td><td id="lines_1" class="data-value">0</td></tr>
                     </tbody></table>
                 </div>
-                <div class="score-box score-box-piece black" onclick="game.handle_event({class:'button', key:'hold' });">
-                    Hold:<div id="hold-piece" class="piece"></div>
-                </div>
+                <div class="score-box score-box-piece black">Next piece:<div id="next-piece" class="piece"></div></div>
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.1.16</div>
+                    <div id="version">v. 0.1.17</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
