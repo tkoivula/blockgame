@@ -131,9 +131,9 @@ const game = {
     restart_new_game: function(game_mode) {
         if (!game_mode) game_mode = document.getElementById("main").dataset.game_mode; // same as last game
         game.state = game.states.not_started;
-        //window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
+        window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
-        //while (game.timers.length > 0) window.clearInterval(game.timers.pop());
+        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         msg.clear_messages();
         piece.remove_shadow();
         game.start_game(game_mode);
@@ -504,11 +504,11 @@ const board = {
 const piece = {
 
     create_new: function(geometry, x, y) {
-        const piece = { geometry };
+        const piece = { geometry, screen_x: x, screen_y: y };
         piece.div = document.createElement( "div" );
         piece.div.className = "piece";
-        piece.screen_x = ((board_width / 2) - 3) * block_size_spaced;
-        piece.screen_y = -1 * block_size_spaced;
+        piece.div.style.width = piece_size + "px";
+        piece.div.style.height = piece_size + "px";
         // prevent overlapping on screen in case half of the piece would be visible
         const has_room = !board.overlap(piece.geometry.shape, piece.screen_x, piece.screen_y - 1)
         if (has_room) {
@@ -581,8 +581,6 @@ const piece = {
     move_and_draw: function(piece, dx, dy) {
         piece.screen_x += dx;
         piece.screen_y += dy;
-        piece.div.style.width = piece_size + "px";
-        piece.div.style.height = piece_size + "px";
         piece.div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y) + "px";
         piece.div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
     },
@@ -915,7 +913,7 @@ a:hover { color: brown; }
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.1.14</div>
+                    <div id="version">v. 0.1.15</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
