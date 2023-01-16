@@ -34,7 +34,6 @@ const game_modes = {
 }
 
 const game = {
-    timers: [],
     state: null,
     states: null,
     current_screen: null,
@@ -111,10 +110,7 @@ const game = {
         msg.send(["Play!"], "", 1000, () => {
             msg.log("New game");
             score_board.clear_current_stats(game_mode);
-            msg.timer_on();
-            const game_time = msg.refresh_time();
-            game.timers.push(window.setInterval(msg.refresh_time, 1000));
-            if (game_time > 0) game.schedule_count_down(game_time);
+            this.resume();
             game.is_new_personal_best = false;
             game.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
             game.next_piece.geometry.original_shape = [...game.next_piece.geometry.shape]; 
@@ -124,32 +120,22 @@ const game = {
         }); 
     },
 
-    schedule_count_down: function(remaining) {
-        game.timers.push(...msg.count_down([120, 60, 10, 3, 2, 1], remaining, game.timeout));
-    },
-
     restart_new_game: function(game_mode) {
         if (!game_mode) game_mode = document.getElementById("main").dataset.game_mode; // same as last game
         game.state = game.states.not_started;
         window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
-        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         msg.clear_messages();
         piece.remove_shadow();
         game.start_game(game_mode);
     },
 
-    pause: function() {
-        msg.timer_off();
-        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
-        msg.log("Pause.");
-    },
+    pause: function() { msg.timer_off(); },
 
     resume: function() {
         msg.timer_on();
         const remaining_time = msg.refresh_time();
-        game.timers.push(window.setInterval(msg.refresh_time, 1000));
-        if (remaining_time > 0) game.schedule_count_down(remaining_time);
+        if (remaining_time > 0) msg.schedule_count_down(remaining_time, [120, 60, 10, 3, 2, 1], game.timeout);
         msg.log("Resume.");
     },
 
@@ -164,7 +150,8 @@ const game = {
             game.create_new_piece();
         }   
         game.hold_piece.geometry.shape = game.hold_piece.geometry.original_shape; // reset orientation
-        piece.draw_piece(game.hold_piece, "hold-piece", -5, 20, 0.8);
+        //piece.draw_piece(game.hold_piece, "hold-piece", -5, 20, 0.8);
+        piece.draw_blocks(game.hold_piece, document.getElementById("hold-piece"), 0, 0, 0.75);
         piece.draw_shadow(game.current_piece);
     },
 
@@ -179,10 +166,11 @@ const game = {
     create_new_piece: function() {
         const [x,y] = [((board_width / 2) - 3) * block_size_spaced, -1 * block_size_spaced];
         this.current_piece = piece.create_new(this.next_piece.geometry, x, y);
-
+        // create new next piece:
         this.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
         this.next_piece.geometry.original_shape = [...this.next_piece.geometry.shape]; 
-        piece.draw_piece(this.next_piece, "next-piece", -5, 20, 0.8);
+        //piece.draw_piece(this.next_piece, "next-piece", -5, 20, 0.8);
+        piece.draw_blocks(this.next_piece, document.getElementById("next-piece"), 0, 0, 0.75);
     },
 
     is_current_piece_in_valid_position: function() {
@@ -193,7 +181,6 @@ const game = {
     game_over: function() {
         msg.timer_off();
         window.clearInterval(this.main_loop_timer); this.main_loop_timer = null;
-        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         this.state = game.states.game_over;
         score_board.update_and_show_current_stats();
         msg.send(["Game Over!"], "", 2000, () => {
@@ -225,7 +212,7 @@ const game = {
 
     main_loop: function() {
         if (game.state != game.states.play) return;
-        const blocked = !piece.move_down_at_most(game.current_piece, 0.4 * Number(get("level")));
+        const blocked = !piece.move_down_at_most(game.current_piece, 0.3 * Number(get("level")));
         if (blocked) {
             game.state = game.states.play;
             game.freeze_current_piece();
@@ -258,6 +245,7 @@ const msg = {
 
     queue: [],
     current_entry: null,
+    timers: [],
 
     init: function() {
         window.setInterval(msg.draw_next_message, 100);
@@ -297,16 +285,20 @@ const msg = {
     },
 
     timer_on: function() {
+        msg.log("Timer on");
         if (document.getElementById("main").dataset.start_time) return; // already running?!?
         document.getElementById("main").dataset.start_time = Date.now();
+        this.timers.push(window.setInterval(msg.refresh_time, 1000));
     },
 
     timer_off: function() {
+        while (this.timers.length > 0) window.clearInterval(this.timers.pop());
         const ds = document.getElementById("main").dataset;
         if (!ds.start_time) return; // not running?!?
         if (!ds.elapsed_time) ds.elapsed_time = 0;
         ds.elapsed_time = Number(ds.elapsed_time) + Date.now() - Number(ds.start_time);
         ds.start_time = "";
+        msg.log("Timer off");
     },
 
     timer_clear: function() {
@@ -326,14 +318,12 @@ const msg = {
         return remaining;
     },
 
-    count_down: function(times, end_time, action) {
-        handles = [];
-        for (const t of times) {
-            if (t * 1000 > end_time) continue;
-            handles.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", 900), end_time - (t * 1000) - 1000));
+    schedule_count_down: function(remaining, count_downs, action) {
+        for (const t of count_downs) {
+            if (t * 1000 > remaining) continue;
+            this.timers.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", 900), remaining - (t * 1000) - 1000));
         }
-        handles.push(window.setTimeout(action, end_time));
-        return handles;
+        this.timers.push(window.setTimeout(action, remaining));
     },
 
     log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
@@ -341,11 +331,11 @@ const msg = {
 }
 
 const score_board = {
-    item_name: "stats-6",
+    local_store_object_id: "stats-6",
     ot_stats: null,
 
     init: function() {
-        const str = localStorage.getItem(this.item_name);
+        const str = localStorage.getItem(this.local_store_object_id);
         this.ot_stats = str ? JSON.parse(str) : {};
         this.show_overall_stats();
     },
@@ -377,7 +367,7 @@ const score_board = {
         if (!ot.lines || Number(stats.lines) > ot.lines) ot.lines = Number(stats.lines);
         if (!ot.lines_4 || Number(stats.lines_4) > ot.lines_4) ot.lines_4 = Number(stats.lines_4);
         if (!ot.first_game) ot.first_game = Date.now();
-        localStorage.setItem(this.item_name, JSON.stringify(this.ot_stats));
+        localStorage.setItem(this.local_store_object_id, JSON.stringify(this.ot_stats));
         this.show_overall_stats();
     },
 
@@ -411,16 +401,13 @@ const board = {
         // 1 col outside left and 1 col outside right 
         for (var i = 0; i < board_width + 2; ++i) {
             this.matrix[i] = [];
-            var val = 0;
-            if (i == 0 || i == board_width + 1) val = 1; // left and right borders
-            var j = 0;
+            const val = (i == 0 || i == board_width + 1) ? 1 : 0;
             // 4 rows above screen and 1 below screen
-            for (j = 0; j < board_height + 3; ++j) {
+            for (var j = 0; j < board_height + 3; ++j) {
                 this.matrix[i][j] = val;
             }
             this.matrix[i][j] = 1; // bottom border
         }
-
     },
 
     find_full_lines: function() {
@@ -461,7 +448,7 @@ const board = {
                     if (this.matrix[x][yy]) this.matrix[x][yy].style.top =  (this.matrix[x][yy].offsetTop + step) + "px";
                 }
             }
-            piece.drop_shadow(step);
+            if (current_piece.shadow) current_piece.shadow.style.top = (current_piece.shadow.offsetTop + step) + "px";
         });
         current += step;
         if (current < total) {
@@ -515,18 +502,9 @@ const piece = {
             document.getElementById("board").appendChild( piece.div );
             this.draw_blocks(piece, piece.div);
             this.move_and_draw(piece, 0, 0);
-            this.draw_shadow(piece);
+            piece.shadow = this.draw_shadow(piece);
         }
         return piece;
-    },
-
-    draw_piece: function(current_piece, div_id, left = 0, top = 0, scale = 1.0) {
-        const div = document.getElementById(div_id);
-        const ll = div.parentNode.offsetLeft + left;
-        const tt = div.parentNode.offsetTop + top;
-        piece.draw_blocks(current_piece, div, ll, tt, scale);
-        div.style.left = ll + "px";
-        div.style.top = tt + "px";
     },
 
     draw_blocks: function(piece, div, left = 0, top = 0, scale = 1.0) {
@@ -599,25 +577,23 @@ const piece = {
         } else {
             // try with remaining portion
             dy = block_size_spaced - ((piece.screen_y + (4 * block_size_spaced)) % block_size_spaced) - 1;
-            if (dy < 1) { this.remove_shadow(); return false; }
+            if (dy < 1) { this.remove_shadow(piece.shadow); return false; }
             if (this.can_move(piece, 0, dy)) {
                 this.move_and_draw(piece, 0, dy);
                 return true;
             }
         }
-        this.remove_shadow();
+        this.remove_shadow(piece.shadow);
         return false;
     },
 
-    shadow_div: null,
-
     draw_shadow: function(piece) {
-        if (!this.shadow_div) {
-            this.shadow_div = document.createElement( "div" );
-            this.shadow_div.className = "piece shadow";
-            this.shadow_div.style.width = piece_size + "px";
-            this.shadow_div.style.height = piece_size + "px";
-            document.getElementById("board").appendChild( this.shadow_div );
+        if (!piece.shadow) {
+            piece.shadow = document.createElement( "div");
+            piece.shadow.className = "piece shadow";
+            piece.shadow.style.width = piece_size + "px";
+            piece.shadow.style.height = piece_size + "px";
+            document.getElementById("board").appendChild( piece.shadow );
         }
         var dy = block_size_spaced; var step = block_size_spaced;
         while (true) {
@@ -628,25 +604,20 @@ const piece = {
             }
             dy += step;
         }
-        if (dy < (2 * block_size_spaced)) { this.remove_shadow(); return } // too close
-        this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y + dy) + "px";
-        this.shadow_div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
-        this.draw_blocks(piece, this.shadow_div);
+        if (dy < (2 * block_size_spaced)) { this.remove_shadow(piece.shadow); return piece.shadow; } // too close
+        piece.shadow.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y + dy) + "px";
+        piece.shadow.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
+        this.draw_blocks(piece, piece.shadow);
+        return piece.shadow;
     },
 
-    drop_shadow: function(dy) {
-        if (!this.shadow_div) return;
-        this.shadow_div.style.top = (this.shadow_div.offsetTop + dy) + "px";
-    },
-
-    remove_shadow: function() {
-        if (!this.shadow_div) return;
-        this.shadow_div.parentElement.removeChild(this.shadow_div);
-        this.shadow_div = null;
+    remove_shadow: function(shadow_div) {
+        if (!shadow_div || !shadow_div.parentElement) return;
+        shadow_div.parentElement.removeChild(shadow_div);
     },
 
     drop: function(piece) {
-        this.remove_shadow();
+        this.remove_shadow(piece.shadow);
         while (this.move_down_at_most(piece, block_size_spaced)) {
         }
     }
@@ -801,7 +772,8 @@ a:hover { color: brown; }
     border-radius: 2px;
 }
 .wide { width: 140px; }
-.score-box-piece { height: 80px; }
+.score-box-piece { height: 90px; }
+.score-box-piece .piece { left: 0px; }
 .piece {
     z-index: 50;
     background-color: transparent;
@@ -897,7 +869,7 @@ a:hover { color: brown; }
             </div>
             <div class="score-board">
                 <div class="score-box black">Level:<br/> <span id="level" data-default="1" class="data-value">0</span></div>
-                <div class="score-box score-box-piece black">Next piece:<br/> <span id="next-piece"></span></div>
+                <div class="score-box score-box-piece black">Next piece:<div id="next-piece" class="piece"></div></div>
                 <div class="score-box black">
                     <table class="score-table"><tbody>  
                         <tr><td>Lines:</td> <td id="lines" class="data-value">0</td></tr>
@@ -908,12 +880,12 @@ a:hover { color: brown; }
                     </tbody></table>
                 </div>
                 <div class="score-box score-box-piece black" onclick="game.handle_event({class:'button', key:'hold' });">
-                    Hold:<br/><span id="hold-piece"></span>
+                    Hold:<div id="hold-piece" class="piece"></div>
                 </div>
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.1.15</div>
+                    <div id="version">v. 0.1.16</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
