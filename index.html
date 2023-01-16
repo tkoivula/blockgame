@@ -437,8 +437,10 @@ const board = {
 
     remove_line: function(y) {
         for (var x = 1; x < this.matrix.length - 1; ++x) {
-            var block_div = this.matrix[x][y];
-            block_div.parentElement.removeChild(block_div);
+            var block_div = this.matrix[x][y]; var parent_div = block_div.parentElement;
+            parent_div.removeChild(block_div);
+            if (!parent_div.lastElementChild)
+                parent_div.parentElement.removeChild(msg.log("Cleaning up an empty div ", parent_div));
             this.matrix[x][y] = 0;
         }
     },
@@ -456,11 +458,7 @@ const board = {
         lines.forEach((y) => {
             for (var x = 1; x < this.matrix.length - 1; ++x) {
                 for (var yy = y - 1; yy > 0; --yy) {
-                    var block2 = this.matrix[x][yy];
-                    if (block2.my_props) {
-                        block2.my_props.top += step;
-                        block2.style.top = block2.my_props.top + "px";
-                    }   
+                    if (this.matrix[x][yy]) this.matrix[x][yy].style.top =  (this.matrix[x][yy].offsetTop + step) + "px";
                 }
             }
             piece.drop_shadow(step);
@@ -532,24 +530,17 @@ const piece = {
     },
 
     draw_blocks: function(piece, div, left = 0, top = 0, scale = 1.0) {
-        while (div.lastElementChild) {
-            div.removeChild(div.lastElementChild);
-        }
+        while (div.lastElementChild) div.removeChild(div.lastElementChild);
         const piece_s = Math.floor(scale * piece_size);
         const block_s = Math.floor(scale * block_size);
         const block_spaced = Math.floor(scale * block_size_spaced);
-
-        var i = 0;
         piece.geometry.shape.forEach(b => {
             const block = document.createElement("div");
             block.className = "block " + piece.geometry.id;
             block.style.width = block_s + "px";
             block.style.height = block_s + "px";
-            block.my_props = {};
-            block.my_props.left = ((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[0])) + left;
-            block.my_props.top = ((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[1])) + top;
-            block.style.left = block.my_props.left + "px";
-            block.style.top = block.my_props.top + "px";
+            block.style.left = (((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[0])) + left) + "px";
+            block.style.top = (((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[1])) + top) + "px";
             div.appendChild(block);
         });
     },
@@ -678,7 +669,7 @@ const gestures = {
     },
 
     touch_start: function(e) {
-        const { touches } = msg.log("Touch start ", e);
+        const { touches } = e;
         if (touches && touches.length == 1) {
             [ gestures.start_x, gestures.start_y ] = [ touches[0].clientX, touches[0].clientY ];
             gestures.event_sent = false;
@@ -687,7 +678,6 @@ const gestures = {
     },
 
     touch_move: function(e) {
-        msg.log("Touch move ", e);
         const [x,y] = [e.touches[0].clientX, e.touches[0].clientY];
         if (!gestures.event_sent && gestures.start_y < y - swipe_limit) {
             game.handle_event({ class: "touch", direction: "swipe_down" });
@@ -702,7 +692,6 @@ const gestures = {
     },
 
     touch_end: function(e) {
-        msg.log("Touch end ", e);
         if (!gestures.event_sent) {
             game.handle_event({ class:"touch", direction:"point"});
             e.preventDefault();
@@ -926,7 +915,7 @@ a:hover { color: brown; }
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.1.13</div>
+                    <div id="version">v. 0.1.14</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
