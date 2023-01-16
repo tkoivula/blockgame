@@ -14,14 +14,14 @@ const piece_size = 5 * block_size_spaced;
 const margin_y = 5;
 const margin_x = 5;
 
-var blocks = [
-    { id: "T", original_shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ] },
-    { id: "I", original_shape: [ [-1, -1], [0, -1], [1, -1], [2, -1] ] },
-    { id: "S", original_shape: [ [-1, 0], [0, 0], [0, -1], [1, -1] ] },
-    { id: "Z", original_shape: [ [-1, -1], [0, -1], [0, 0], [1, 0] ] },
-    { id: "O", original_shape: [ [-1, -1], [0, -1], [-1, 0], [0, 0] ] },
-    { id: "L", original_shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ] },
-    { id :"J", original_shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ] }
+var block_types = [
+    { id: "T", shape: [ [-1, -1], [0, -1], [1, -1], [0, 0] ] },
+    { id: "I", shape: [ [-1, -1], [0, -1], [1, -1], [2, -1] ] },
+    { id: "S", shape: [ [-1, 0], [0, 0], [0, -1], [1, -1] ] },
+    { id: "Z", shape: [ [-1, -1], [0, -1], [0, 0], [1, 0] ] },
+    { id: "O", shape: [ [-1, -1], [0, -1], [-1, 0], [0, 0] ] },
+    { id: "L", shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ] },
+    { id :"J", shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ] }
 ];
 
 const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72, q: 81, r: 82  }
@@ -39,24 +39,23 @@ const game = {
     states: null,
     current_screen: null,
     next_piece: null,
-    mem_piece: null,
+    hold_piece: null,
+    current_piece: null,
     is_new_personal_best: null,
     main_loop_timer: null,
     
     init: function() {
-        game.states = { menu: {}, not_started: {}, play: {}, paused: {}, game_over: {}, confirm_new_game: {} };
+        game.states = { menu: {}, not_started: {}, play: {}, paused: {}, game_over: {} };
         for (const [id, state] of Object.entries(game.states)) state.id = id;
         game.states.play.handlers = [
             { filter: (e) => [action_keys.p, "pause"].includes(e.key), screen: "pause", action: game.pause, state: game.states.paused },
-            { filter: (e) => e.key === action_keys.space, action: game.drop },
-            { filter: (e) => e.direction === "swipe_down", action: game.drop },
+            { filter: (e) => e.key === action_keys.space || e.direction === "swipe_down", action: game.drop },
             { filter: (e) => e.key === action_keys.left, action: function(e) { game.move_left_or_right(-1) }},
             { filter: (e) => e.key === action_keys.right, action: function(e) { game.move_left_or_right(1) }},
             { filter: (e) => e.direction === "move", action: function(e) { game.move_left_or_right(e.value); } },
-            { filter: (e) => e.key === action_keys.up, action: game.rotate_cw },
-            { filter: (e) => e.direction === "point", action: game.rotate_cw },
+            { filter: (e) => e.key === action_keys.up || e.direction === "point", action: game.rotate_cw },
             { filter: (e) => e.key === action_keys.down, action: game.rotate_ccw },
-            { filter: (e) => [action_keys.h, "hold"].includes(e.key), action: game.hold_piece }
+            { filter: (e) => [action_keys.h, "hold"].includes(e.key), action: game.switch_hold_piece }
         ];
         if (debug) {
             game.states.play.handlers.push(
@@ -64,18 +63,13 @@ const game = {
             game.states.play.handlers.push(
                 { filter: (e) => { return e.key === action_keys.s; }, action: () => inc("level", -1) });
         }
-
         game.states.menu.handlers = [
-            { filter: (e) => [action_keys.s, "new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("standard"); }, state: game.states.play },
-            { filter: (e) => [action_keys.q, "new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("quick"); }, state: game.states.play }
+            { filter: (e) => [action_keys.s, "new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("standard"); } },
+            { filter: (e) => [action_keys.q, "new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("quick"); } }
         ];
         game.states.paused.handlers = [
             ...game.states.menu.handlers,
             { filter: (e) => [action_keys.p, action_keys.r, "resume"].includes(e.key), screen: "play", action: game.resume, state: game.states.play }
-        ];
-
-        game.states.confirm_new_game.handlers = [
-            { filter: (e) => ["key_press", "touch"].includes(e.class), action: game.restart_new_game, state: game.states.play }
         ];
         game.state = game.states.menu;
         msg.log("Initial game state is ", game.state.id);
@@ -84,14 +78,13 @@ const game = {
 
     switch_to_screen: function(screen) {
         for (const elem of document.querySelectorAll('[data-screen]')) {
-            if (elem.id === "board") continue;
+            if (elem.id === "board") continue; // never hide board
             elem.style.visibility = elem.dataset.screen === screen ? "visible" : "hidden";
         }
         this.current_screen = msg.log("Switching to screen ", screen);
     },
 
     handle_event: function(event) {
-        msg.log("State is ", game.state.id);
         const handlers = game.state.handlers;
         if (game.state.handlers) for (const h of game.state.handlers) {
             if (h.filter(event)) {
@@ -104,6 +97,7 @@ const game = {
                 return;
             }
         }
+        msg.log("State is ", game.state.id);
         msg.log_json("WARN! None of the handlers matched for ", event);
     },
 
@@ -122,7 +116,8 @@ const game = {
             game.timers.push(window.setInterval(msg.refresh_time, 1000));
             if (game_time > 0) game.schedule_count_down(game_time);
             game.is_new_personal_best = false;
-            game.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
+            game.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
+            game.next_piece.geometry.original_shape = [...game.next_piece.geometry.shape]; 
             game.create_new_piece();
             game.state = game.states.play;
             game.main_loop_timer = window.setInterval(game.main_loop, refresh_rate);
@@ -136,9 +131,9 @@ const game = {
     restart_new_game: function(game_mode) {
         if (!game_mode) game_mode = document.getElementById("main").dataset.game_mode; // same as last game
         game.state = game.states.not_started;
-        window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
+        //window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
-        while (game.timers.length > 0) window.clearInterval(game.timers.pop());
+        //while (game.timers.length > 0) window.clearInterval(game.timers.pop());
         msg.clear_messages();
         piece.remove_shadow();
         game.start_game(game_mode);
@@ -158,34 +153,41 @@ const game = {
         msg.log("Resume.");
     },
 
-    hold_piece: function() {
-        if (game.mem_piece) {
-            if (board.overlap(game.mem_piece.shape, piece.screen_x, piece.screen_y)) return; // no space
-            [ piece.current_piece, game.mem_piece ] = [ game.mem_piece, piece.current_piece ];
-            piece.draw_blocks(piece.current_piece, piece.piece_div);
+    switch_hold_piece: function() {
+        if (game.hold_piece) {
+            if (board.overlap(game.hold_piece.geometry.shape, game.current_piece.screen_x, game.current_piece.screen_y)) return; // no space
+            [ game.current_piece.geometry, game.hold_piece.geometry ] = [ game.hold_piece.geometry, game.current_piece.geometry ];
+            piece.draw_blocks(game.current_piece, game.current_piece.div);
         } else {
-            piece.piece_div.parentNode.removeChild(piece.piece_div);
-            game.mem_piece = piece.current_piece;
+            game.current_piece.div.parentNode.removeChild(game.current_piece.div);
+            game.hold_piece = { ...game.current_piece };
             game.create_new_piece();
-        }
-        game.mem_piece.shape = game.mem_piece.original_shape; // reset orientation
-        piece.draw_piece(game.mem_piece, "mem-piece", -5, 20, 0.8);
-        piece.draw_shadow();
+        }   
+        game.hold_piece.geometry.shape = game.hold_piece.geometry.original_shape; // reset orientation
+        piece.draw_piece(game.hold_piece, "hold-piece", -5, 20, 0.8);
+        piece.draw_shadow(game.current_piece);
     },
 
     clear_hold_piece: function() {
-        if (game.mem_piece) {
-            const div = document.getElementById("mem-piece");
+        if (game.hold_piece) {
+            const div = document.getElementById("hold-piece");
             while (div.lastElementChild) div.removeChild(div.lastElementChild);
-            game.mem_piece = null;
+            game.hold_piece = null;
         }
     },
 
     create_new_piece: function() {
-        const current_piece = this.next_piece;
-        this.next_piece = { ...blocks[Math.floor(Math.random() * blocks.length)] };
-        piece.draw_piece(this.next_piece, "next-piece", -5, 20, 0.8);  
-        return piece.create_new(current_piece);
+        const [x,y] = [((board_width / 2) - 3) * block_size_spaced, -1 * block_size_spaced];
+        this.current_piece = piece.create_new(this.next_piece.geometry, x, y);
+
+        this.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
+        this.next_piece.geometry.original_shape = [...this.next_piece.geometry.shape]; 
+        piece.draw_piece(this.next_piece, "next-piece", -5, 20, 0.8);
+    },
+
+    is_current_piece_in_valid_position: function() {
+        const p = this.current_piece;
+        return !board.overlap(p.geometry.shape, p.screen_x, p.screen_y);
     },
 
     game_over: function() {
@@ -206,28 +208,29 @@ const game = {
     },
 
     freeze_current_piece: function() {
-        board.mark_position_to_board(piece.screen_x, piece.screen_y, piece.current_piece, piece.piece_div);
+        board.mark_position_to_board(game.current_piece.screen_x, game.current_piece.screen_y, game.current_piece, game.current_piece.div);
     },
 
     clear_full_lines: function(lines) {
         lines.forEach((l) => board.remove_line(l));
-        board.animate_drop(lines, 0, block_size_spaced, 4, refresh_rate);
+        board.animate_drop(this.current_piece, lines, 0, block_size_spaced, 4, refresh_rate);
     },
 
-    move_left_or_right: (dx) => piece.move_left_or_right(dx < 0 ? -1 : dx > 0 ? 1 : 0),
-    move_left: () => piece.move_left_or_right(-1), 
-    move_right: () => piece.move_left_or_right(1), 
-    drop: () => piece.drop(),
-    rotate_cw: () => piece.rotate(1),
-    rotate_ccw: () => piece.rotate(-1),
+    move_left_or_right: (dx) => piece.move_left_or_right(game.current_piece, dx < 0 ? -1 : dx > 0 ? 1 : 0),
+    move_left: () => piece.move_left_or_right(game.current_piece, -1), 
+    move_right: () => piece.move_left_or_right(game.current_piece, 1), 
+    drop: () => piece.drop(game.current_piece),
+    rotate_cw: () => piece.rotate(game.current_piece, 1),
+    rotate_ccw: () => piece.rotate(game.current_piece, -1),
 
     main_loop: function() {
         if (game.state != game.states.play) return;
-        const blocked = !piece.move_down_at_most(0.4 * Number(get("level")));
+        const blocked = !piece.move_down_at_most(game.current_piece, 0.4 * Number(get("level")));
         if (blocked) {
             game.state = game.states.play;
             game.freeze_current_piece();
-            inc("score", (Number(get("level")) * piece.current_piece.shape.length));
+            inc("score", (Number(get("level")) * game.current_piece.geometry.shape.length));
+            game.create_new_piece();
             const lines = board.find_full_lines();
             if (lines.length > 0) {
                 inc("score", Math.floor(Math.pow(2, lines.length - 1) * 100));
@@ -246,8 +249,7 @@ const game = {
                     game.is_new_personal_best = true;
                 }
             }
-            const room_for_new_piece = game.create_new_piece();
-            if (!room_for_new_piece) game.game_over();
+            if (!game.is_current_piece_in_valid_position()) game.game_over();
         }
     }
 }
@@ -308,7 +310,6 @@ const msg = {
     },
 
     timer_clear: function() {
-        this.timer_off();
         const ds = document.getElementById("main").dataset;
         ds.elapsed_time = ds.start_time = ds.game_time = "";
     },
@@ -451,7 +452,7 @@ const board = {
         }
     },
 
-    animate_drop: function(lines, current, total, step, delay) {
+    animate_drop: function(current_piece, lines, current, total, step, delay) {
         lines.forEach((y) => {
             for (var x = 1; x < this.matrix.length - 1; ++x) {
                 for (var yy = y - 1; yy > 0; --yy) {
@@ -466,10 +467,10 @@ const board = {
         });
         current += step;
         if (current < total) {
-            setTimeout(() => board.animate_drop(lines, current, total, step, delay), delay);
+            setTimeout(() => board.animate_drop(current_piece, lines, current, total, step, delay), delay);
         } else {
             lines.forEach((y) => board.drop_above(y));
-            piece.draw_shadow();
+            piece.draw_shadow(current_piece);
         }
 
     },
@@ -479,7 +480,10 @@ const board = {
     },
 
     overlap: function(shape, screen_x, screen_y) {
-        const pos = this.position_in_matrix(screen_x, screen_y);
+        return this.overlap_grid(shape, this.position_in_matrix(screen_x, screen_y));
+    },
+
+    overlap_grid: function(shape, pos) {
         for (i = 0; i < shape.length; ++i) {
             const x = pos[0] + shape[i][0] + 2;
             const y = pos[1] + shape[i][1] + 2;
@@ -491,37 +495,31 @@ const board = {
 
     mark_position_to_board: function(screen_x, screen_y, current_piece, piece_div) {
         const position = this.position_in_matrix(screen_x, screen_y);
-        for (i = 0; i < current_piece.shape.length; ++i) {
-            const x = position[0] + current_piece.shape[i][0] + 2;
-            const y = position[1] + current_piece.shape[i][1] + 2;
+        for (i = 0; i < current_piece.geometry.shape.length; ++i) {
+            const x = position[0] + current_piece.geometry.shape[i][0] + 2;
+            const y = position[1] + current_piece.geometry.shape[i][1] + 2;
             this.matrix[x][y] = piece_div.children[i];
         }
     }
 }
 
 const piece = {
-    piece_div: null,
-    screen_x: null,
-    screen_y: null,
-    current_piece: null,
 
-    create_new: function(piece) {
-        this.piece_div = document.createElement( "div" );
-        this.piece_div.className = "piece";
-        this.current_piece = piece;
-        this.screen_x = ((board_width / 2) - 3) * block_size_spaced;
-        this.screen_y = -1 * block_size_spaced;
-        if (!piece.shape) piece.shape = piece.original_shape;
+    create_new: function(geometry, x, y) {
+        const piece = { geometry };
+        piece.div = document.createElement( "div" );
+        piece.div.className = "piece";
+        piece.screen_x = ((board_width / 2) - 3) * block_size_spaced;
+        piece.screen_y = -1 * block_size_spaced;
         // prevent overlapping on screen in case half of the piece would be visible
-        const has_room = !board.overlap(this.current_piece.shape, this.screen_x, this.screen_y - 1)
-        const has_room2 = !board.overlap(this.current_piece.shape, this.screen_x, this.screen_y)
+        const has_room = !board.overlap(piece.geometry.shape, piece.screen_x, piece.screen_y - 1)
         if (has_room) {
-            document.getElementById("board").appendChild( this.piece_div );
-            this.draw_blocks(this.current_piece, this.piece_div);
-            this.move_and_draw(0, 0);
-            this.draw_shadow();
+            document.getElementById("board").appendChild( piece.div );
+            this.draw_blocks(piece, piece.div);
+            this.move_and_draw(piece, 0, 0);
+            this.draw_shadow(piece);
         }
-        return has_room2;
+        return piece;
     },
 
     draw_piece: function(current_piece, div_id, left = 0, top = 0, scale = 1.0) {
@@ -533,19 +531,18 @@ const piece = {
         div.style.top = tt + "px";
     },
 
-    draw_blocks: function(piece, piece_div, left = 0, top = 0, scale = 1.0) {
-        while (piece_div.lastElementChild) {
-            piece_div.removeChild(piece_div.lastElementChild);
+    draw_blocks: function(piece, div, left = 0, top = 0, scale = 1.0) {
+        while (div.lastElementChild) {
+            div.removeChild(div.lastElementChild);
         }
         const piece_s = Math.floor(scale * piece_size);
         const block_s = Math.floor(scale * block_size);
         const block_spaced = Math.floor(scale * block_size_spaced);
 
         var i = 0;
-        if (!piece.shape) piece.shape = piece.original_shape;
-        piece.shape.forEach(b => {
+        piece.geometry.shape.forEach(b => {
             const block = document.createElement("div");
-            block.className = "block " + piece.id;
+            block.className = "block " + piece.geometry.id;
             block.style.width = block_s + "px";
             block.style.height = block_s + "px";
             block.my_props = {};
@@ -553,81 +550,79 @@ const piece = {
             block.my_props.top = ((piece_s / 2) - (block_spaced / 2) + (block_spaced * b[1])) + top;
             block.style.left = block.my_props.left + "px";
             block.style.top = block.my_props.top + "px";
-            piece_div.appendChild(block);
+            div.appendChild(block);
         });
     },
 
-    rotate: function(direction) {
-        var rotated;
-        if (direction === -1) {
-            rotated = this.current_piece.shape.map( b => [b[1], -1 * b[0]]);
-        } else {
-            rotated = this.current_piece.shape.map( b => [-1 * b[1], b[0]]);
-        }
-
-        // try first on current pos, then 1 right, 2 right, .., 1 left, 2 left, ...
-        var can_rotate = false;
-        const tries = [ 0, 1, -1, 2, -2 ];
-        for (var i = 0; i < tries.length; ++i) {
-            var x = this.screen_x;
-            if (tries[i] != 0) this.move_left_or_right(tries[i]);
-            if (!board.overlap(rotated, this.screen_x, this.screen_y)) {
-                can_rotate = true; break;
+    can_rotate: function(piece, rotated_shape) {
+        const pos = board.position_in_matrix(piece.screen_x, piece.screen_y);
+        // try first on current pos, then 1 right, 1 left, ..., 3 right, 3 left
+        for (const movement of [ 0, 1, -1, 2, -2, 3, -3 ]) {
+            if (this.can_move(piece, movement * block_size_spaced, 0) &&
+                !board.overlap_grid(rotated_shape, [pos[0] +  movement, pos[1]])) {
+                    this.move_and_draw(piece, movement * block_size_spaced, 0);
+                    return true;
             }
-            if (tries[i] != 0) this.move_and_draw(x - this.screen_x, 0); // cancel move
         }
-        if (can_rotate) {
-            this.current_piece.shape = rotated;
-            this.draw_blocks(this.current_piece, this.piece_div);
-            this.draw_shadow();
-        }
+        return false;
     },
 
-    can_move: function(dx, dy) {
-        const cur_pos = board.position_in_matrix(this.screen_x, this.screen_y);
-        const new_pos = board.position_in_matrix(this.screen_x + dx, this.screen_y + dy);
-        if (new_pos[0] != cur_pos[0] || new_pos[1] != cur_pos[1]) {
-            return !board.overlap(this.current_piece.shape, this.screen_x + dx, this.screen_y + dy);
-        }
-        return true; // not moved enough, no point checking overlap
-    },
-
-    move_and_draw: function(dx, dy) {
-        this.screen_x += dx;
-        this.screen_y += dy;
-        this.piece_div.style.width = piece_size + "px";
-        this.piece_div.style.height = piece_size + "px";
-        this.piece_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y) + "px";
-        this.piece_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
-    },
-
-    move_left_or_right: function(dx) {
-        if (this.can_move(dx * block_size_spaced, 0)) {
-            this.move_and_draw(dx * block_size_spaced, 0);
-            this.draw_shadow();
+    rotate: function(piece, direction) {
+        const rotated = piece.geometry.shape.map(b => direction == -1 ? [b[1], -1 * b[0]] : [-1 * b[1], b[0]]);
+        if (this.can_rotate(piece, rotated)) {
+            piece.geometry.shape = rotated;
+            this.draw_blocks(piece, piece.div);
+            this.draw_shadow(piece);
         }
     },
 
-    move_down_at_most: function(dy) {
-        if (this.can_move(0, dy)) {
-            this.move_and_draw(0, dy);
+    can_move: function(piece, dx, dy) {
+        const pos = board.position_in_matrix(piece.screen_x, piece.screen_y);
+        const new_pos = board.position_in_matrix(piece.screen_x + dx, piece.screen_y + dy);
+        const dir = [dx == 0 ? 0 : dx / Math.abs(dx), dy == 0 ? 0 : dy / Math.abs(dy)];
+        while (new_pos[0] != pos[0] || new_pos[1] != pos[1]) {
+            pos[0] += dir[0]; pos[1] += dir[1];
+            if (board.overlap_grid(piece.geometry.shape, pos)) return false;
+        }
+        return true;
+    },
+
+    move_and_draw: function(piece, dx, dy) {
+        piece.screen_x += dx;
+        piece.screen_y += dy;
+        piece.div.style.width = piece_size + "px";
+        piece.div.style.height = piece_size + "px";
+        piece.div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y) + "px";
+        piece.div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
+    },
+
+    move_left_or_right: function(piece, dx) {
+        if (this.can_move(piece, dx * block_size_spaced, 0)) {
+            this.move_and_draw(piece, dx * block_size_spaced, 0);
+            this.draw_shadow(piece);
+        }
+    },
+
+    move_down_at_most: function(piece, dy) {
+        if (this.can_move(piece, 0, dy)) {
+            this.move_and_draw(piece, 0, dy);
             return true;
         } else {
             // try with remaining portion
-            dy = block_size_spaced - ((this.screen_y + (4 * block_size_spaced)) % block_size_spaced) - 1;
-            if (dy < 1) { piece.remove_shadow(); return false; }
-            if (this.can_move(0, dy)) {
-                this.move_and_draw(0, dy);
+            dy = block_size_spaced - ((piece.screen_y + (4 * block_size_spaced)) % block_size_spaced) - 1;
+            if (dy < 1) { this.remove_shadow(); return false; }
+            if (this.can_move(piece, 0, dy)) {
+                this.move_and_draw(piece, 0, dy);
                 return true;
             }
         }
-        piece.remove_shadow();
+        this.remove_shadow();
         return false;
     },
 
     shadow_div: null,
 
-    draw_shadow: function() {
+    draw_shadow: function(piece) {
         if (!this.shadow_div) {
             this.shadow_div = document.createElement( "div" );
             this.shadow_div.className = "piece shadow";
@@ -637,7 +632,7 @@ const piece = {
         }
         var dy = block_size_spaced; var step = block_size_spaced;
         while (true) {
-            if (board.overlap(this.current_piece.shape, this.screen_x, this.screen_y + dy)) {
+            if (board.overlap(piece.geometry.shape, piece.screen_x, piece.screen_y + dy)) {
                 dy -= step;
                 step = step / 2;
                 if (step <= 1) break;
@@ -645,9 +640,9 @@ const piece = {
             dy += step;
         }
         if (dy < (2 * block_size_spaced)) { this.remove_shadow(); return } // too close
-        this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + this.screen_y + margin_y + dy) + "px";
-        this.shadow_div.style.left = (board.board_div.offsetLeft + this.screen_x + margin_x) + "px";
-        this.draw_blocks(this.current_piece, this.shadow_div);
+        this.shadow_div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y + dy) + "px";
+        this.shadow_div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
+        this.draw_blocks(piece, this.shadow_div);
     },
 
     drop_shadow: function(dy) {
@@ -661,9 +656,9 @@ const piece = {
         this.shadow_div = null;
     },
 
-    drop: function() {
+    drop: function(piece) {
         this.remove_shadow();
-        while (piece.move_down_at_most(block_size_spaced)) {
+        while (this.move_down_at_most(piece, block_size_spaced)) {
         }
     }
 }
@@ -737,10 +732,9 @@ const buttons_init = function() {
     }
 }
 
-
 const keyboard_init = function() {
     const press = function(pressed) {
-        msg.log("Key press ", pressed.keyCode);
+        //msg.log("Key press ", pressed.keyCode);
         if (Object.values(action_keys).indexOf(pressed.keyCode) < 0) return;
         pressed.preventDefault();
         game.handle_event({ class: "key_press", key: pressed.keyCode });
@@ -927,12 +921,12 @@ a:hover { color: brown; }
                     </tbody></table>
                 </div>
                 <div class="score-box score-box-piece black" onclick="game.handle_event({class:'button', key:'hold' });">
-                    Hold:<br/><span id="mem-piece"></span>
+                    Hold:<br/><span id="hold-piece"></span>
                 </div>
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.1.12</div>
+                    <div id="version">v. 0.1.13</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
