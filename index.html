@@ -24,8 +24,8 @@ const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 const game_modes = {
-    standard: { game_time: 0 },
-    quick: { game_time: 1000 * 60 * 3 }
+    standard: { game_time: 0, title: "Standard Game", desc: "No time limit" },
+    quick: { game_time: 1000 * 60 * 3, title: "Quick Game", desc: "Best in 3 mins" }
 }
 
 const game = {
@@ -101,6 +101,7 @@ const game = {
         msg.refresh_time();
         board.init();
         game.clear_hold_piece();
+        if (game_modes[game_mode].desc) msg.send([game_modes[game_mode].desc], "", 1000);
         msg.send(["3", "2", "1"], "", 500);
         msg.send(["Play!"], "", 1000, () => {
             msg.log("New game");
@@ -598,7 +599,7 @@ const piece = {
             }
             dy += step;
         }
-        if (dy < (2 * block_size_spaced)) { this.remove_shadow(piece.shadow); return; } // too close
+        //if (dy < (2 * block_size_spaced)) { this.remove_shadow(piece.shadow); return; } // too close
         piece.shadow.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y + dy) + "px";
         piece.shadow.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
         this.draw_blocks(piece, piece.shadow, false);
@@ -671,13 +672,20 @@ const format = function(value, format) {
     } catch (err) { console.log("Error converting value " + value + " to format " + format + ": " + err); } 
     return value;
 }
-
+const set_all = function(cl, value) {
+    for (const elem of document.getElementsByClassName(cl)) { elem.innerText = value; }
+}
 const inc = function(id, value) { set(id, Number(get(id)) + value); }
 const get = function(id) { return document.getElementById(id) ? document.getElementById(id).dataset.value : null; }
 
 const buttons_init = function() {
+    for (mode of Object.keys(game_modes)) {
+        set_all(mode + "_title", game_modes[mode].title);
+        set_all(mode + "_desc", game_modes[mode].desc);
+    }
     for (const b of document.getElementsByClassName("button")) {
         b.onclick = () => game.handle_event({class:'button', key: b.id });
+        if (b.dataset.key) b.innerHTML = b.innerHTML.replace(b.dataset.key,"<span class='key'>"+ b.dataset.key + "</span>");
     }
 }
 
@@ -796,12 +804,14 @@ a:hover { color: brown; }
 }
 .button {
     border-radius: 4px;
-    padding: 5px;
+    margin: 10px 15px 10px 15px;
+    padding: 5px 10px 5px 5px;
     background-color: green;
     border: 2px solid darkgreen;
     color: white;
 }
 .button:active { background-color: darkgreen; }
+.key { text-decoration: underline; }
 #message-area {
     z-index: 97;
     visibility: hidden;
@@ -829,8 +839,9 @@ a:hover { color: brown; }
     text-align: center;
     width: 300px;
     height: 300px;
+    color: white;
 }
-.menu .title { color: white; margin: 50px 10px 50px 10px; }
+.menu .title { margin: 50px 10px 50px 10px; }
 .menu .button { margin: 10px 30px 10px 30px; }
 .black { 
     background-color: rgb(40, 40, 40); 
@@ -846,16 +857,19 @@ a:hover { color: brown; }
     <body onload="init_page()">
         <div id="main">
             <div id="menu-div" data-screen="menu" class="menu board-size">
-                <br/><br/>
                 <div class="title">Choose game mode:</div>
-                <div id="new_game" class="button">New Standard Game</div>
-                <div id="new_quick_game" class="button">New Quick Game</div>
+                <button id="new_game" class="button" data-key="S">New <span class="standard_title"></span></button>
+                <div class="standard_desc"></div><br/><br/>
+                <button id="new_quick_game" class="button" data-key="Q">New <span class="quick_title"></span></button>
+                <div class="quick_desc"></div>
             </div>
             <div id="pause-div" data-screen="pause" class="menu board-size">
                 <div class="title">Paused</div>
-                <div id="resume" class="button">Resume</div><br/><br/>
-                <div id="new_game" class="button">New Standard Game</div>
-                <div id="new_quick_game" class="button">New Quick Game</div>
+                <button id="resume" class="button" data-key="R">Resume</button><br/><br/><br/>
+                <button id="new_game" class="button" data-key="S">New <span class="standard_title"></span></button>
+                <div class="standard_desc"></div><br/><br/>
+                <button id="new_quick_game" class="button" data-key="Q">New <span class="quick_title"></span></button>
+                <div class="quick_desc"></div>
             </div>
             <div id="touch-area" class="board-size"></div>
             <div id="message-area" class="message black board-size"></div>
@@ -883,9 +897,9 @@ a:hover { color: brown; }
                 </div>
                 <div class="score-box score-box-piece black">Next piece:<div id="next-piece" class="piece"></div></div>
                 <div class="score-box">
-                    <div id="hold" class="button">Hold</div><br/>
-                    <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.2.0</div>
+                    <button id="hold" class="button" data-key="H">Hold</button><br/>
+                    <button id="pause" class="button" data-key="P">Pause</button><br/>
+                    <div id="version">v. 0.2.1</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
