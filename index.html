@@ -665,8 +665,10 @@ const set = function(id, value) {
 }
 
 const format = function(value, format) {
-    if (format === "duration") return new Date(value).toISOString().substr(11, 8).replace(/^[0]+[0:]/, "");
-    if (format === "days") return Math.floor((Date.now() - value) / 1000 / 60 / 60 / 24) + " days ago";
+    try {
+        if (format === "duration") return new Date(value).toISOString().substr(11, 8).replace(/^[0]+[0:]/, "");
+        if (format === "days") return Math.floor((Date.now() - value) / 1000 / 60 / 60 / 24) + " days ago";
+    } catch (err) { console.log("Error converting value " + value + " to format " + format + ": " + err); } 
     return value;
 }
 
@@ -701,12 +703,18 @@ const init_page = function() {
         </script>
         <style>
 body {
-    width: 100%;
-    height: 100%;
     margin: 0;
+    background-color: rgb(88, 88, 88);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: small;
+}
+#main {
+    max-width: 1024px;
+    min-height: 90vh;
     background-color: rgb(153, 157, 144);
     font-family: 'Courier New', Courier, monospace;
     font-size: small;
+    padding-bottom: 50px;
 }
 a {
     text-decoration: none;
@@ -718,10 +726,11 @@ a:hover { color: brown; }
     margin-left: 20px;
 }
 .text-pane {
-    padding: 10px;
-    clear: both;
+    padding: 10px 3% 10px 3%;
     max-width: 400px;
+    display: inline-table;
 }
+.chapter { padding: 10px; }
 #header {
     background-color: grey;
     text-align: right;
@@ -729,11 +738,12 @@ a:hover { color: brown; }
     padding: 5px;
 }
 #footer {
-    background-color: grey;
+    max-width: 1024px;
+    background-color: rgb(106, 112, 94);
     text-align: center;
     color: white;
-    margin: 30px 0px 0px 0px;
-    padding: 30px;
+    margin: 0px 0px 0px 0px;
+    padding: 30px 0px 10% 0px;
 }
 #board {
     margin: 5px 0px 0px 0px;
@@ -778,7 +788,7 @@ a:hover { color: brown; }
 .shadow { z-index: 10; }
 .shadow .block { 
     background-color: rgb(40, 40, 40); 
-    border: 1px dashed grey;
+    border: 1px dashed rgb(173, 175, 143);
 }
 .block { 
     position: absolute; 
@@ -836,9 +846,10 @@ a:hover { color: brown; }
     <body onload="init_page()">
         <div id="main">
             <div id="menu-div" data-screen="menu" class="menu board-size">
-                <div class="title">Block Game</div><br/><br/>
+                <br/><br/>
+                <div class="title">Choose game mode:</div>
                 <div id="new_game" class="button">New Standard Game</div>
-                <div id="new_quick_game" class="button">New Quick Game</div>o
+                <div id="new_quick_game" class="button">New Quick Game</div>
             </div>
             <div id="pause-div" data-screen="pause" class="menu board-size">
                 <div class="title">Paused</div>
@@ -874,80 +885,83 @@ a:hover { color: brown; }
                 <div class="score-box">
                     <div id="hold" class="button">Hold</div><br/>
                     <div id="pause" class="button">Pause</div><br/>
-                    <div id="version">v. 0.1.17</div>
+                    <div id="version">v. 0.2.0</div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
-        </div>
         <div class="text-pane">
-            <h1>Block game</h1>
-            <p>This is a free time hobby project for myself. I was tired of ads in Tetris
-                games and decided to make my own minimalistic game.</p>
-            <p>This game is implemented entirely with JavaScript and HTML without any
-                additional libraries.</p>
+            <div class="chapter">
+                <h1>Block game</h1>
+                <p>This is a free time hobby project for myself. I was tired of ads in Tetris
+                    games and decided to make my own minimalistic game.</p>
+                <p>This game is implemented entirely with JavaScript and HTML without any
+                    additional libraries.</p>
+            </div>
+            <div class="chapter">
+                <h2>Statistics</h2>
+                <h3>Previous game</h3>
+                <p>Here are the statistics from your previous game:</p>
+                <table class="stats black">
+                    <colgroup><col/><col style="width:100px;"/></colgroup>
+                    <tbody>  
+                        <tr><td>Time:</td><td id="previous-time" class="data-value" data-format="duration"></td></tr>
+                        <tr><td>Score:</td><td id="previous-score" class="data-value"></td></tr>
+                        <tr><td>Level:</td><td id="previous-level" data-default="1" class="data-value"></td></tr>
+                        <tr><td>4-line combos:</td><td id="previous-lines_4" class="data-value"></td></tr>
+                        <tr><td>3-line combos:</td><td id="previous-lines_3" class="data-value"></td></tr>
+                        <tr><td>2-line combos:</td><td id="previous-lines_2" class="data-value"></td></tr>
+                        <tr><td>Single lines:</td><td id="previous-lines_1" class="data-value"></td></tr>
+                        <tr><td>Lines:</td><td id="previous-lines" class="data-value"></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="chapter">
+                <h3>Overall statistics</h2>
+                <p>Here are your overall statistics:</p>
+                <table class="stats black">
+                    <colgroup><col/><col style="width:100px;"/><col style="width:100px;"/></colgroup>
+                    <tbody>  
+                        <tr>
+                            <td>Games played:</td>
+                            <td id="ot-standard-games" class="data-value"></td>
+                            <td id="ot-quick-games" class="data-value"></td>
+                        </tr>
+                        <tr>
+                            <td>First game played:</td>
+                            <td id="ot-standard-first_game" class="data-value" data-format="days"></td>
+                            <td id="ot-quick-first_game" class="data-value" data-format="days"></td>
+                        </tr>
+                        <tr>
+                            <td>Time spend:</td>
+                            <td id="ot-standard-time" class="data-value" data-format="duration"></td>
+                            <td id="ot-quick-time" class="data-value" data-format="duration"></td>
+                        </tr>
+                        <tr>
+                            <td>Best score:</td>
+                            <td id="ot-standard-score" class="data-value"></td>
+                            <td id="ot-quick-score" class="data-value"></td>
+                        </tr>
+                        <tr>
+                            <td>Highest level:</td>
+                            <td id="ot-standard-level" class="data-value"></td>
+                            <td id="ot-quick-level" class="data-value"></td>
+                        </tr>
+                        <tr>
+                            <td>Max row clears:</td>
+                            <td id="ot-standard-lines" class="data-value"></td>
+                            <td id="ot-quick-lines" class="data-value"></td>
+                        </tr>
+                        <tr>
+                            <td>Max 4-row combos:</td>
+                            <td id="ot-standard-lines_4" class="data-value"></td>
+                            <td id="ot-quick-lines_4" class="data-value"></td>
+                        </tr>
+                    </tbody>    
+                </table>
+            </div>
         </div>
-        <div class="text-pane">
-            <h2>Statistics</h2>
-            <h3>Previous game</h3>
-            <p>Here are the statistics from your previous game:</p>
-            <table class="stats black">
-                <colgroup><col/><col style="width:100px;"/></colgroup>
-                <tbody>  
-                    <tr><td>Time:</td><td id="previous-time" class="data-value" data-format="duration"></td></tr>
-                    <tr><td>Score:</td><td id="previous-score" class="data-value"></td></tr>
-                    <tr><td>Level:</td><td id="previous-level" data-default="1" class="data-value"></td></tr>
-                    <tr><td>4-line combos:</td><td id="previous-lines_4" class="data-value"></td></tr>
-                    <tr><td>3-line combos:</td><td id="previous-lines_3" class="data-value"></td></tr>
-                    <tr><td>2-line combos:</td><td id="previous-lines_2" class="data-value"></td></tr>
-                    <tr><td>Single lines:</td><td id="previous-lines_1" class="data-value"></td></tr>
-                    <tr><td>Lines:</td><td id="previous-lines" class="data-value"></td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="text-pane">
-            <h3>Overall statistics</h2>
-            <p>Here are your overall statistics:</p>
-            <table class="stats black">
-                <colgroup><col/><col style="width:100px;"/><col style="width:100px;"/></colgroup>
-                <tbody>  
-                    <tr>
-                        <td>Games played:</td>
-                        <td id="ot-standard-games" class="data-value"></td>
-                        <td id="ot-quick-games" class="data-value"></td>
-                    </tr>
-                    <tr>
-                        <td>First game played:</td>
-                        <td id="ot-standard-first_game" class="data-value" data-format="days"></td>
-                        <td id="ot-quick-first_game" class="data-value" data-format="days"></td>
-                    </tr>
-                    <tr>
-                        <td>Time spend:</td>
-                        <td id="ot-standard-time" class="data-value" data-format="duration"></td>
-                        <td id="ot-quick-time" class="data-value" data-format="duration"></td>
-                    </tr>
-                    <tr>
-                        <td>Best score:</td>
-                        <td id="ot-standard-score" class="data-value"></td>
-                        <td id="ot-quick-score" class="data-value"></td>
-                    </tr>
-                    <tr>
-                        <td>Highest level:</td>
-                        <td id="ot-standard-level" class="data-value"></td>
-                        <td id="ot-quick-level" class="data-value"></td>
-                    </tr>
-                    <tr>
-                        <td>Max row clears:</td>
-                        <td id="ot-standard-lines" class="data-value"></td>
-                        <td id="ot-quick-lines" class="data-value"></td>
-                    </tr>
-                    <tr>
-                        <td>Max 4-row combos:</td>
-                        <td id="ot-standard-lines_4" class="data-value"></td>
-                        <td id="ot-quick-lines_4" class="data-value"></td>
-                    </tr>
-                </tbody>    
-            </table>
-        </div>
+    </div>
+
         <div id="footer">
             2023 &copy; <a href="https://github.com/tkoivula/">T. Koivula</a> <a href="https://github.com/tkoivula/tkoivula.github.io/">[Source code]</a>
         </div>
