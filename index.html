@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <meta charset = "utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta charset = "utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <meta name="version" content="0.3.0"/>
         <title> Block game </title>
         <script type = "text/javascript">
 const [ board_width, board_height ] = [ 10, 20 ];
@@ -27,6 +28,8 @@ const game_modes = {
     standard: { game_time: 0, title: "Standard Game", desc: "No time limit" },
     quick: { game_time: 1000 * 60 * 3, title: "Quick Game", desc: "Best in 3 mins" }
 }
+
+const get_version = () => document.querySelector('meta[name="version"]').content.split(".");
 
 const game = {
     state: null,
@@ -104,20 +107,17 @@ const game = {
         if (game_modes[game_mode].desc) msg.send([game_modes[game_mode].desc], "", 1000);
         msg.send(["3", "2", "1"], "", 500);
         msg.send(["Play!"], "", 1000, () => {
-            msg.log("New game");
+            msg.log("New game in mode ", game_mode);
             score_board.clear_current_stats(game_mode);
             this.resume();
             game.is_new_personal_best = false;
-            game.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
-            game.next_piece.geometry.original_shape = [...game.next_piece.geometry.shape]; 
-            game.create_new_piece();
+            game.create_new_piece(true);
             game.state = game.states.play;
             game.main_loop_timer = window.setInterval(game.main_loop, refresh_rate);
         }); 
     },
 
     restart_new_game: function(game_mode) {
-        if (!game_mode) game_mode = document.getElementById("main").dataset.game_mode; // same as last game
         game.state = game.states.not_started;
         window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
@@ -159,12 +159,23 @@ const game = {
         }
     },
 
-    create_new_piece: function() {
+    create_new_piece: function(first_piece = false) {
         const [x,y] = [((board_width / 2) - 3) * block_size_spaced, -1 * block_size_spaced];
-        this.current_piece = piece.create_new(this.next_piece.geometry, x, y);
-        // create new next piece:
-        this.next_piece = { geometry: { ...block_types[Math.floor(Math.random() * block_types.length)] } };
-        this.next_piece.geometry.original_shape = [...this.next_piece.geometry.shape]; 
+        // First two cannot pieces cannot be both Ss or Zs, aka impossible start
+        const impossible_start = function(geometries) {
+            for (g of geometries) if (!["S", "Z"].includes(g.id)) return false;
+            return true;
+        }
+        const random_geometry = () => ({...block_types[Math.floor(Math.random() * block_types.length)] });
+        var geometries = [null, null];
+        if (first_piece) {
+            do geometries = geometries.map(random_geometry); while (impossible_start(geometries));
+        } else {
+            geometries = [this.next_piece.geometry, random_geometry()];
+        }
+        this.current_piece = piece.create_new(geometries[0], x, y);
+        this.next_piece = { geometry: geometries[1] };
+        for (g of geometries) if (!g.original_shape) g.original_shape = [...g.shape];
         piece.draw_blocks(this.next_piece, document.getElementById("next-piece"), false, 0, 0, 0.75);
     },
 
@@ -211,7 +222,7 @@ const game = {
         if (blocked) {
             game.state = game.states.play;
             game.freeze_current_piece();
-            inc("score", (Number(get("level")) * game.current_piece.geometry.shape.length));
+            inc("score", (2 * Number(get("level")) * game.current_piece.geometry.shape.length));
             game.create_new_piece();
             const lines = board.find_full_lines();
             if (lines.length > 0) {
@@ -325,7 +336,7 @@ const msg = {
 }
 
 const score_board = {
-    local_store_object_id: "stats-6",
+    local_store_object_id: "stats-" + get_version()[0], // major version change resets stats
     ot_stats: null,
 
     init: function() {
@@ -342,10 +353,10 @@ const score_board = {
     },
 
     update_and_show_current_stats: function(stats = {}) {
-        stats.game_mode = document.getElementById("main").dataset.game_mode;
         for (elem of document.getElementsByClassName("data-value")) {
             stats[elem.id] = elem.dataset.value;
         }
+        stats.game_mode = document.getElementById("main").dataset.game_mode;
         msg.log_json("Stats ", stats);
         for (key of Object.keys(stats)) set("previous-" + key, stats[key]); // show current
         score_board.update_overall_stats(stats); // show overall
@@ -599,7 +610,6 @@ const piece = {
             }
             dy += step;
         }
-        //if (dy < (2 * block_size_spaced)) { this.remove_shadow(piece.shadow); return; } // too close
         piece.shadow.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y + dy) + "px";
         piece.shadow.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
         this.draw_blocks(piece, piece.shadow, false);
@@ -700,6 +710,7 @@ const keyboard_init = function() {
 }
 
 const init_page = function() {
+    document.getElementById("version").innerText = "v. " + get_version().join(".");
     score_board.init();
     game.init();
     board.init();
@@ -730,6 +741,7 @@ a {
 }
 a:hover { color: brown; }
 .stats {
+    text-align: left;
     padding: 10px;
     margin-left: 20px;
 }
@@ -803,9 +815,9 @@ a:hover { color: brown; }
     border-radius: 2px;
 }
 .button {
-    border-radius: 4px;
-    margin: 10px 15px 10px 15px;
-    padding: 5px 10px 5px 5px;
+    border-radius: 6px;
+    margin: 10px 0px 10px 0px;
+    padding: 10px 20px 10px 20px;
     background-color: green;
     border: 2px solid darkgreen;
     color: white;
@@ -842,14 +854,17 @@ a:hover { color: brown; }
     color: white;
 }
 .menu .title { margin: 50px 10px 50px 10px; }
-.menu .button { margin: 10px 30px 10px 30px; }
+.menu .button {
+    width: 180px;
+    margin: 10px 30px 10px 30px;
+}
 .black { 
     background-color: rgb(40, 40, 40); 
     color: white;
 }
 #version {
     font-size: x-small;
-    margin-top: 20px;
+    margin-top: 5px;
     vertical-align: bottom;
 }
         </style>
@@ -899,7 +914,7 @@ a:hover { color: brown; }
                 <div class="score-box">
                     <button id="hold" class="button" data-key="H">Hold</button><br/>
                     <button id="pause" class="button" data-key="P">Pause</button><br/>
-                    <div id="version">v. 0.2.1</div>
+                    <div id="version"></div>
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
@@ -918,6 +933,7 @@ a:hover { color: brown; }
                 <table class="stats black">
                     <colgroup><col/><col style="width:100px;"/></colgroup>
                     <tbody>  
+                        <tr><td>Game mode:</td><td id="previous-game_mode"></td></tr>
                         <tr><td>Time:</td><td id="previous-time" class="data-value" data-format="duration"></td></tr>
                         <tr><td>Score:</td><td id="previous-score" class="data-value"></td></tr>
                         <tr><td>Level:</td><td id="previous-level" data-default="1" class="data-value"></td></tr>
@@ -934,7 +950,8 @@ a:hover { color: brown; }
                 <p>Here are your overall statistics:</p>
                 <table class="stats black">
                     <colgroup><col/><col style="width:100px;"/><col style="width:100px;"/></colgroup>
-                    <tbody>  
+                    <tbody> 
+                        <tr><th>&nbsp;</th><th>Standard</th><th>Quick</th></tr>
                         <tr>
                             <td>Games played:</td>
                             <td id="ot-standard-games" class="data-value"></td>
