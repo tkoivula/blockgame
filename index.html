@@ -105,7 +105,7 @@ const game = {
         board.init();
         game.clear_hold_piece();
         if (game_modes[game_mode].desc) msg.send([game_modes[game_mode].desc], "", 1000);
-        msg.send(["3", "2", "1"], "", 500);
+        msg.send(["3", "2", "1"], "", 1000);
         msg.send(["Play!"], "", 1000, () => {
             msg.log("New game in mode ", game_mode);
             score_board.clear_current_stats(game_mode);
@@ -269,7 +269,7 @@ const msg = {
         if (msg.queue.length == 0 || msg.current_entry) return;
         msg.current_entry = msg.queue.shift();
         const div = document.getElementById("message-area");
-        div.className = "message " + msg.current_entry.type;
+        div.className = div.className.replace("message", msg.current_entry.type);
         div.style.visibility = "visible";
         div.innerText = msg.current_entry.message;
         if (msg.current_entry.time !== 0) setTimeout(msg.clear_message, msg.current_entry.time);
@@ -326,7 +326,8 @@ const msg = {
     schedule_count_down: function(remaining, count_downs, action) {
         for (const t of count_downs) {
             if (t * 1000 > remaining) continue;
-            this.timers.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", 900), remaining - (t * 1000) - 1000));
+            const showing_time = t < 60 ? 1000 : 2000;
+            this.timers.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", showing_time), remaining - (t * 1000) - 1000));
         }
         this.timers.push(window.setTimeout(action, remaining));
     },
@@ -723,14 +724,15 @@ const init_page = function() {
         <style>
 body {
     margin: 0;
-    background-color: rgb(88, 88, 88);
+    background-color: rgb(23, 130, 145);
     font-family: 'Courier New', Courier, monospace;
     font-size: small;
 }
 #main {
     max-width: 1024px;
     min-height: 90vh;
-    background-color: rgb(153, 157, 144);
+    background: rgb(69,213,231);
+    background: linear-gradient(145deg, rgba(238,180,193,1) 20%, rgba(69,213,231,1) 69%);
     font-family: 'Courier New', Courier, monospace;
     font-size: small;
     padding-bottom: 50px;
@@ -751,15 +753,9 @@ a:hover { color: brown; }
     display: inline-table;
 }
 .chapter { padding: 10px; }
-#header {
-    background-color: grey;
-    text-align: right;
-    color: white;
-    padding: 5px;
-}
 #footer {
     max-width: 1024px;
-    background-color: rgb(106, 112, 94);
+    background-color: rgb(23, 130, 145);
     text-align: center;
     color: white;
     margin: 0px 0px 0px 0px;
@@ -788,7 +784,7 @@ a:hover { color: brown; }
     float: initial;
     margin: 4px;
     padding: 4px;
-    border-radius: 2px;
+    border-radius: 4px;
 }
 .wide { width: 140px; }
 .score-box-piece { height: 90px; }
@@ -798,17 +794,18 @@ a:hover { color: brown; }
     background-color: transparent;
     position: absolute;
 }
-.T { background-color: purple; }
-.I { background-color: cyan; }
-.O { background-color: yellow; }
-.S { background-color: green; }
-.Z { background-color: red; }
-.L { background-color: brown; }
-.J { background-color: blue; }
+.T { background: rgb(123,23,211); background: radial-gradient(circle, rgb(123, 23, 211) 0%, rgba(76,13,131,1) 99%); }
+.I { background: rgb(56,224,235); background: radial-gradient(circle, rgba(56,224,235,1) 0%, rgba(49,188,198,1) 99%);}
+.O { background: rgb(249,235,122); background: radial-gradient(circle, rgba(249,235,122,1) 0%, rgba(255,227,0,1) 99%); }
+.S { background: rgb(16,156,49); background: radial-gradient(circle, rgb(16, 156, 49) 0%, rgba(13,131,38,1) 99%); }
+.Z { background: rgb(247,73,73); background: radial-gradient(circle, rgb(247, 73, 73) 0%, rgb(194, 1, 1) 99%); }
+.L { background: rgb(218,138,16); background: radial-gradient(circle, rgba(218,138,16,1) 0%, rgba(179,113,13,1) 99%); }
+.J { background: rgb(16,45,218); background: radial-gradient(circle, rgba(16,45,218,1) 0%, rgba(13,28,179,1) 99%); }
 .shadow { z-index: 10; }
 .shadow .block { 
+    background: none;
     background-color: rgb(40, 40, 40); 
-    border: 1px dashed rgb(173, 175, 143);
+    border: 1px dashed rgb(173, 175, 143); 
 }
 .block { 
     position: absolute; 
@@ -818,9 +815,10 @@ a:hover { color: brown; }
     border-radius: 6px;
     margin: 10px 0px 10px 0px;
     padding: 10px 20px 10px 20px;
-    background-color: green;
-    border: 2px solid darkgreen;
     color: white;
+    border: 2px solid rgb(27, 154, 156);
+    background: rgb(34,193,195);
+    background: linear-gradient(0deg, rgba(34,193,195,1) 0%, rgba(253,187,45,1) 100%);
 }
 .button:active { background-color: darkgreen; }
 .key { text-decoration: underline; }
@@ -830,12 +828,24 @@ a:hover { color: brown; }
     background-color: transparent;
     color: white;
     font-weight: bolder;
-    font-size: larger;
+    font-size: large;
     position: absolute;
     text-align: center;
     display: flex;
     justify-content: center;
     align-items: center;
+}
+.glow {
+    animation: glow 1s ease-in-out infinite alternate;
+}
+@-webkit-keyframes glow {
+  from {
+    text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
+  }
+  
+  to {
+    text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
+  }
 }
 #touch-area {
     z-index: 98;
@@ -867,6 +877,9 @@ a:hover { color: brown; }
     margin-top: 5px;
     vertical-align: bottom;
 }
+h1, h2, h3, h4 {
+    color: rgb(58, 124, 110);
+}
         </style>
     </head>
     <body onload="init_page()">
@@ -887,7 +900,7 @@ a:hover { color: brown; }
                 <div class="quick_desc"></div>
             </div>
             <div id="touch-area" class="board-size"></div>
-            <div id="message-area" class="message black board-size"></div>
+            <div id="message-area" class="message black board-size glow"></div>
             <div class="score-board score-board-vertical">
                 <div class="score-box black">Score:<br/> <span id="score" class="data-value">0</span></div>
                 <div class="score-box black wide">Time:<br/>
