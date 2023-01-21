@@ -3,7 +3,8 @@
     <head>
         <meta charset = "utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-        <meta name="version" content="0.3.1"/>
+        <meta name="theme-color" content="#EEB4C11"/>
+        <meta name="version" content="0.3.2"/>
         <title> Block game </title>
         <script type = "text/javascript">
 const [ board_width, board_height ] = [ 10, 20 ];
@@ -25,7 +26,7 @@ const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 const game_modes = {
-    standard: { game_time: 0, title: "Standard Game", desc: "No time limit" },
+    standard: { game_time: 0, title: "Standard Game", desc: "Unlimited time" },
     quick: { game_time: 1000 * 60 * 3, title: "Quick Game", desc: "Best in 3 mins" }
 }
 
@@ -316,19 +317,22 @@ const msg = {
         const ds = document.getElementById("main").dataset;
         var total = ds.elapsed_time ? Number(ds.elapsed_time) : 0;
         if (ds.start_time) total = total + (Date.now() - Number(ds.start_time));
-        var remaining = Number(ds.game_time) - total; 
         set("time", total);
         if (ds.game_time && Number(ds.game_time) > 0) {
+            var remaining = Number(ds.game_time) - total + 100; // round up
             set("remaining", remaining);
+            return remaining;
+        } else {
+            return -1;
         }
-        return remaining;
     },
 
     schedule_count_down: function(remaining, count_downs, action) {
         for (const t of count_downs) {
             if (t * 1000 > remaining) continue;
             const showing_time = t < 60 ? 1000 : 2000;
-            this.timers.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", showing_time), remaining - (t * 1000) - 1000));
+            this.timers.push(window.setTimeout(() => msg.send([format(t * 1000, "duration") + " left"], "", showing_time),
+                    remaining - (t * 1000) - 1000));
         }
         this.timers.push(window.setTimeout(action, remaining));
     },
@@ -337,13 +341,19 @@ const msg = {
     log_json: debug ? (msg, json) => { console.log(msg + JSON.stringify(json)); return json; } : (msg, json) => json
 }
 
+read_object_from_local_store = function(id) {
+    const str = localStorage.getItem(id);
+    return str ? JSON.parse(str) : {};
+}
+
 const score_board = {
     local_store_object_id: "stats-" + get_version()[0], // major version change resets stats
+    local_store_previous_object_id: "previous-" + get_version()[0], // major version change resets stats
     ot_stats: null,
 
     init: function() {
-        const str = localStorage.getItem(this.local_store_object_id);
-        this.ot_stats = str ? JSON.parse(str) : {};
+        this.ot_stats = read_object_from_local_store(this.local_store_object_id);
+        this.show_previous_stats(read_object_from_local_store(this.local_store_previous_object_id));
         this.show_overall_stats();
     },
 
@@ -359,9 +369,13 @@ const score_board = {
             stats[elem.id] = elem.dataset.value;
         }
         stats.game_mode = document.getElementById("main").dataset.game_mode;
-        msg.log_json("Stats ", stats);
-        for (key of Object.keys(stats)) set("previous-" + key, stats[key]); // show current
-        score_board.update_overall_stats(stats); // show overall
+        localStorage.setItem(this.local_store_previous_object_id, JSON.stringify(stats));
+        score_board.show_previous_stats(msg.log_json("Stats ", stats));        
+        score_board.update_overall_stats(stats);
+    },
+
+    show_previous_stats: function(stats) {
+        for (key of Object.keys(stats)) set("previous-" + key, stats[key]);
     },
 
     update_overall_stats: function(stats) {
@@ -676,7 +690,6 @@ const set = function(id, value) {
     elem.dataset.value = value;
     elem.innerText = elem.dataset.format ? format(value, elem.dataset.format) : value;
 }
-
 const format = function(value, format) {
     try {
         if (format === "duration") return new Date(value).toISOString().substr(11, 8).replace(/^[0]+[0:]/, "");
@@ -739,21 +752,9 @@ body {
     font-size: small;
     padding-bottom: 50px;
 }
-a {
-    text-decoration: none;
-    color:white;
-}
-a:hover { color: brown; }
-.stats {
-    text-align: left;
-    padding: 10px;
-    margin-left: 20px;
-}
-.text-pane {
-    padding: 10px 3% 10px 3%;
-    max-width: 400px;
-    display: inline-table;
-}
+a { text-decoration: none; color:white; }
+.stats { text-align: left; padding: 10px; margin-left: 20px; }
+.text-pane { padding: 10px 3% 10px 3%; max-width: 400px; display: inline-table; }
 .chapter { padding: 10px; }
 #footer {
     max-width: 1024px;
@@ -763,31 +764,13 @@ a:hover { color: brown; }
     margin: 0px 0px 0px 0px;
     padding: 30px 0px 10% 0px;
 }
-#board {
-    margin: 5px 0px 0px 0px;
-    padding: 5px;
-    text-align: center;
-    float: left;
-}
-.score-board {
-    padding: 0px 4px 4px 4px;
-    text-align: center;
-    float: left;
-}
-.score-board-vertical {
-    width: 95%;
-    padding: 4px 4px 0px 4px;
-}
+#board { margin: 5px 0px 0px 0px; padding: 5px; text-align: center; float: left; }
+.score-board { padding: 0px 4px 4px 4px; text-align: center; float: left; }
+.score-board-vertical { width: 95%; padding: 4px 4px 0px 4px; }
 .score-board-vertical .score-box { float: left; }
 .score-table .left { text-align: right; }
 .score-table-right { width: 20px; }
-.score-box {
-    width: 80px;
-    float: initial;
-    margin: 4px;
-    padding: 4px;
-    border-radius: 4px;
-}
+.score-box { width: 80px; float: initial; margin: 4px; padding: 4px; border-radius: 4px; }
 .wide { width: 140px; }
 .score-box-piece { height: 90px; }
 .score-box-piece .piece { left: 0px; }
@@ -804,15 +787,8 @@ a:hover { color: brown; }
 .L { background: rgb(218,138,16); background: radial-gradient(circle, rgba(218,138,16,1) 0%, rgba(179,113,13,1) 99%); }
 .J { background: rgb(16,45,218); background: radial-gradient(circle, rgba(16,45,218,1) 0%, rgba(13,28,179,1) 99%); }
 .shadow { z-index: 10; }
-.shadow .block { 
-    background: none;
-    background-color: rgb(40, 40, 40); 
-    border: 1px dashed rgb(173, 175, 143); 
-}
-.block { 
-    position: absolute; 
-    border-radius: 2px;
-}
+.shadow .block { background: none; background-color: rgb(40, 40, 40); border: 1px dashed rgb(173, 175, 143); }
+.block { position: absolute; border-radius: 2px; }
 .button {
     border-radius: 6px;
     margin: 10px 0px 10px 0px;
@@ -823,6 +799,10 @@ a:hover { color: brown; }
     background: linear-gradient(0deg, rgba(34,193,195,1) 0%, rgba(253,187,45,1) 100%);
 }
 .button:active { background-color: darkgreen; }
+.mini {
+    padding: 5px 10px 5px 10px;
+    margin: 5px 0px 5px 0px;
+}
 .key { text-decoration: underline; }
 #message-area {
     z-index: 97;
@@ -837,9 +817,7 @@ a:hover { color: brown; }
     justify-content: center;
     align-items: center;
 }
-.glow {
-    animation: glow 1s ease-in-out infinite alternate;
-}
+.glow { animation: glow 1s ease-in-out infinite alternate; }
 @-webkit-keyframes glow {
   from {
     text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
@@ -848,11 +826,7 @@ a:hover { color: brown; }
     text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
   }
 }
-#touch-area {
-    z-index: 98;
-    background-color: transparent;
-    position: absolute;
-}
+#touch-area { z-index: 98; background-color: transparent; position: absolute; }
 .menu {
     z-index: 99;
     position: absolute;
@@ -865,19 +839,9 @@ a:hover { color: brown; }
     color: white;
 }
 .menu .title { margin: 50px 10px 50px 10px; }
-.menu .button {
-    width: 180px;
-    margin: 10px 30px 10px 30px;
-}
-.black { 
-    background-color: rgb(40, 40, 40); 
-    color: white;
-}
-#version {
-    font-size: x-small;
-    margin-top: 5px;
-    vertical-align: bottom;
-}
+.menu .button { width: 180px; margin: 10px 30px 10px 30px; }
+.black { background-color: rgb(40, 40, 40); color: white; }
+#version { font-size: x-small; margin-top: 5px; vertical-align: bottom; }
 h1, h2, h3, h4 { color: rgb(58, 124, 110); }
         </style>
     </head>
@@ -904,7 +868,7 @@ h1, h2, h3, h4 { color: rgb(58, 124, 110); }
                 <div class="score-box black">Score:<br/> <span id="score" class="data-value">0</span></div>
                 <div class="score-box black wide">Time:<br/>
                     <span id="time" data-format="duration" class="data-value">00:00</span>
-                    (<span id="remaining" data-format="duration" class="data-value"></span>)
+                    (<span id="remaining" data-format="duration" data-default="" class="data-value"></span>)
                 </div>
                 <div class="score-box black right">Best:<br/> <span id="best">see below</span></div>
             </div>
@@ -933,15 +897,55 @@ h1, h2, h3, h4 { color: rgb(58, 124, 110); }
             <div class="text-pane">
                 <div class="chapter">
                     <h1>Block game</h1>
-                    <p>This is a free time hobby project for myself. I was tired of ads in Tetris
-                        games and decided to make my own minimalistic game.</p>
-                    <p>This game is implemented entirely with JavaScript and HTML without any
-                        additional libraries.</p>
+                    <p>This is a free time hobby project for myself. I was tired of ads in Tetris games and decided to make my
+                        own minimalistic game.</p>
+                    <p>This game is implemented entirely with HTML, CSS and JavaScript without any additional libraries.</p>
+                </div>
+                <div class="chapter">
+                    <h2>How to play</h2>
+                    <h3>Controls on touch screen</h3>
+                    <p>Pieces can be moved left or right with contious single-touch on the board area. Swipe down to drop the
+                        current piece. Putting current piece in hold touch either Hold button or Hold aread on screen.</p>
+                    <h3>Controls with keyboard</h3>
+                    <p>Use left and right arrows to move piece. Rotate piece with up and down arrows. Drop with space. Hold
+                        piece with 'H' and Pause with 'P'.
+                    <ul>
+                        <li>Move left and right: <button class="button mini">&leftarrow;</button>
+                            <button class="button mini">&rightarrow;</button></li>
+                        <li>Rotate: <button class="button mini">&uparrow;</button>
+                        <button class="button mini">&downarrow;</button></li>
+                        <li>Drop: <button class="button mini">SPACE</button></li>
+                        <li>Hold: <button class="button mini">h</button></li>
+                        <li>Pause: <button class="button mini">p</button></li>
+                    </ul>
+                    </p>
+                    <h3>Objective</h3>
+                    <p>Objective of the game is to continue playing as long as possible and collect as many points as possible by
+                        removing vertical rows. Pieces fall down one by one and once a row becomes full of blocks without holes
+                        in it it will disappear and blocks above it will fall down.</p>
+                    <p>Pieces can be moved, rotated and dropped down. Rotation of a piece will not prevent it falling down and
+                        once the piece touches another piece it will stop moving and a new piece starts falling down from the top
+                        center. A piece can also be put into hold and substituted with the piece currently in hold. If there is no
+                        existing piece in hold a new piece start falling down. Using hold will not affect scoring or levels.                       
+                    </p>
+                    <h3>Levels</h3>
+                    <p>Every tenth removed row increases the game level. The number of points gained from new pieces increase
+                        with levels. Pieces start falling down faster with higher levels. There is no maximum level to reach.
+                    </p>
+                    <h3>Scoring</h3>
+                    <p>The higher the level the more points you get from new pieces. Removing combination of rows with a single
+                        piece gain more points, the most being 800 points by removing four rows with a single piece. Using
+                        controls such as rotation, drop or hold do not affect scoring.</p>
+                    <h3>Game modes</h3>
+                    <p>Standard game mode is a classic mode where there is no time limits. Just keep playing and leveling as long 
+                        as you can.</p>
+                    <p>Quick game takes 3 minutes. Make the best possible score during that time. It is wise to try to make as many
+                        4 row combination clears as possible to get maximize your points.</p>
                 </div>
                 <div class="chapter">
                     <h2>Statistics</h2>
                     <h3>Previous game</h3>
-                    <p>Here are the statistics from your previous game:</p>
+                    <p>Here are the statistics from your previous game if you have played one:</p>
                     <table class="stats black">
                         <colgroup><col/><col style="width:100px;"/></colgroup>
                         <tbody>  
@@ -959,7 +963,7 @@ h1, h2, h3, h4 { color: rgb(58, 124, 110); }
                 </div>
                 <div class="chapter">
                     <h3>Overall statistics</h2>
-                    <p>Here are your overall statistics:</p>
+                    <p>Here are your overall statistics in different game modes on this browser:</p>
                     <table class="stats black">
                         <colgroup><col/><col style="width:100px;"/><col style="width:100px;"/></colgroup>
                         <tbody> 
