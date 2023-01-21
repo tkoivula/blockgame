@@ -1,6 +1,6 @@
 # Block Game
 
-Go to https://tkoivula.github.io/ to test it!
+Go to https://theblockgame.github.io/ to test it!
 
 This is a free time hobby project for myself. I was tired of ads in Tetris games and decided to make my own minimalistic game.
 
