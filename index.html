@@ -3,7 +3,7 @@
     <head>
         <meta charset = "utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-        <meta name="version" content="0.3.0"/>
+        <meta name="version" content="0.3.1"/>
         <title> Block game </title>
         <script type = "text/javascript">
 const [ board_width, board_height ] = [ 10, 20 ];
@@ -45,7 +45,8 @@ const game = {
         game.states = { menu: {}, not_started: {}, play: {}, paused: {}, game_over: {} };
         for (const [id, state] of Object.entries(game.states)) state.id = id;
         game.states.play.handlers = [
-            { filter: (e) => [action_keys.p, "pause"].includes(e.key), screen: "pause", action: game.pause, state: game.states.paused },
+            { filter: (e) => [action_keys.p, "pause", "visibility"].includes(e.key), 
+                screen: "pause", action: game.pause, state: game.states.paused },
             { filter: (e) => e.key === action_keys.space || e.direction === "swipe_down", action: game.drop },
             { filter: (e) => e.key === action_keys.left, action: function(e) { game.move_left_or_right(-1) }},
             { filter: (e) => e.key === action_keys.right, action: function(e) { game.move_left_or_right(1) }},
@@ -270,7 +271,7 @@ const msg = {
         msg.current_entry = msg.queue.shift();
         const div = document.getElementById("message-area");
         div.className = div.className.replace("message", msg.current_entry.type);
-        div.style.visibility = "visible";
+        div.style.visibility = "visible"; 
         div.innerText = msg.current_entry.message;
         if (msg.current_entry.time !== 0) setTimeout(msg.clear_message, msg.current_entry.time);
     },
@@ -711,6 +712,7 @@ const keyboard_init = function() {
 }
 
 const init_page = function() {
+    document.addEventListener("visibilitychange", (e) => game.handle_event({ key: "visibility", value: document.hidden }));
     document.getElementById("version").innerText = "v. " + get_version().join(".");
     score_board.init();
     game.init();
@@ -794,7 +796,7 @@ a:hover { color: brown; }
     background-color: transparent;
     position: absolute;
 }
-.T { background: rgb(123,23,211); background: radial-gradient(circle, rgb(123, 23, 211) 0%, rgba(76,13,131,1) 99%); }
+.T { background: rgb(107,11,192); background: radial-gradient(circle, rgb(107, 11, 192) 0%, rgba(76,13,131,1) 99%); }
 .I { background: rgb(56,224,235); background: radial-gradient(circle, rgba(56,224,235,1) 0%, rgba(49,188,198,1) 99%);}
 .O { background: rgb(249,235,122); background: radial-gradient(circle, rgba(249,235,122,1) 0%, rgba(255,227,0,1) 99%); }
 .S { background: rgb(16,156,49); background: radial-gradient(circle, rgb(16, 156, 49) 0%, rgba(13,131,38,1) 99%); }
@@ -842,7 +844,6 @@ a:hover { color: brown; }
   from {
     text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
   }
-  
   to {
     text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
   }
@@ -877,9 +878,7 @@ a:hover { color: brown; }
     margin-top: 5px;
     vertical-align: bottom;
 }
-h1, h2, h3, h4 {
-    color: rgb(58, 124, 110);
-}
+h1, h2, h3, h4 { color: rgb(58, 124, 110); }
         </style>
     </head>
     <body onload="init_page()">
@@ -931,81 +930,75 @@ h1, h2, h3, h4 {
                 </div>
             </div>
             <div id="board" data-screen="play" class="black"></div>
-        <div class="text-pane">
-            <div class="chapter">
-                <h1>Block game</h1>
-                <p>This is a free time hobby project for myself. I was tired of ads in Tetris
-                    games and decided to make my own minimalistic game.</p>
-                <p>This game is implemented entirely with JavaScript and HTML without any
-                    additional libraries.</p>
-            </div>
-            <div class="chapter">
-                <h2>Statistics</h2>
-                <h3>Previous game</h3>
-                <p>Here are the statistics from your previous game:</p>
-                <table class="stats black">
-                    <colgroup><col/><col style="width:100px;"/></colgroup>
-                    <tbody>  
-                        <tr><td>Game mode:</td><td id="previous-game_mode"></td></tr>
-                        <tr><td>Time:</td><td id="previous-time" class="data-value" data-format="duration"></td></tr>
-                        <tr><td>Score:</td><td id="previous-score" class="data-value"></td></tr>
-                        <tr><td>Level:</td><td id="previous-level" data-default="1" class="data-value"></td></tr>
-                        <tr><td>4-line combos:</td><td id="previous-lines_4" class="data-value"></td></tr>
-                        <tr><td>3-line combos:</td><td id="previous-lines_3" class="data-value"></td></tr>
-                        <tr><td>2-line combos:</td><td id="previous-lines_2" class="data-value"></td></tr>
-                        <tr><td>Single lines:</td><td id="previous-lines_1" class="data-value"></td></tr>
-                        <tr><td>Lines:</td><td id="previous-lines" class="data-value"></td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="chapter">
-                <h3>Overall statistics</h2>
-                <p>Here are your overall statistics:</p>
-                <table class="stats black">
-                    <colgroup><col/><col style="width:100px;"/><col style="width:100px;"/></colgroup>
-                    <tbody> 
-                        <tr><th>&nbsp;</th><th>Standard</th><th>Quick</th></tr>
-                        <tr>
-                            <td>Games played:</td>
-                            <td id="ot-standard-games" class="data-value"></td>
-                            <td id="ot-quick-games" class="data-value"></td>
-                        </tr>
-                        <tr>
-                            <td>First game played:</td>
-                            <td id="ot-standard-first_game" class="data-value" data-format="days"></td>
-                            <td id="ot-quick-first_game" class="data-value" data-format="days"></td>
-                        </tr>
-                        <tr>
-                            <td>Time spend:</td>
-                            <td id="ot-standard-time" class="data-value" data-format="duration"></td>
-                            <td id="ot-quick-time" class="data-value" data-format="duration"></td>
-                        </tr>
-                        <tr>
-                            <td>Best score:</td>
-                            <td id="ot-standard-score" class="data-value"></td>
-                            <td id="ot-quick-score" class="data-value"></td>
-                        </tr>
-                        <tr>
-                            <td>Highest level:</td>
-                            <td id="ot-standard-level" class="data-value"></td>
-                            <td id="ot-quick-level" class="data-value"></td>
-                        </tr>
-                        <tr>
-                            <td>Max row clears:</td>
-                            <td id="ot-standard-lines" class="data-value"></td>
-                            <td id="ot-quick-lines" class="data-value"></td>
-                        </tr>
-                        <tr>
-                            <td>Max 4-row combos:</td>
-                            <td id="ot-standard-lines_4" class="data-value"></td>
-                            <td id="ot-quick-lines_4" class="data-value"></td>
-                        </tr>
-                    </tbody>    
-                </table>
+            <div class="text-pane">
+                <div class="chapter">
+                    <h1>Block game</h1>
+                    <p>This is a free time hobby project for myself. I was tired of ads in Tetris
+                        games and decided to make my own minimalistic game.</p>
+                    <p>This game is implemented entirely with JavaScript and HTML without any
+                        additional libraries.</p>
+                </div>
+                <div class="chapter">
+                    <h2>Statistics</h2>
+                    <h3>Previous game</h3>
+                    <p>Here are the statistics from your previous game:</p>
+                    <table class="stats black">
+                        <colgroup><col/><col style="width:100px;"/></colgroup>
+                        <tbody>  
+                            <tr><td>Game mode:</td><td id="previous-game_mode"></td></tr>
+                            <tr><td>Time:</td><td id="previous-time" class="data-value" data-format="duration"></td></tr>
+                            <tr><td>Score:</td><td id="previous-score" class="data-value"></td></tr>
+                            <tr><td>Level:</td><td id="previous-level" data-default="1" class="data-value"></td></tr>
+                            <tr><td>4-line combos:</td><td id="previous-lines_4" class="data-value"></td></tr>
+                            <tr><td>3-line combos:</td><td id="previous-lines_3" class="data-value"></td></tr>
+                            <tr><td>2-line combos:</td><td id="previous-lines_2" class="data-value"></td></tr>
+                            <tr><td>Single lines:</td><td id="previous-lines_1" class="data-value"></td></tr>
+                            <tr><td>Lines:</td><td id="previous-lines" class="data-value"></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="chapter">
+                    <h3>Overall statistics</h2>
+                    <p>Here are your overall statistics:</p>
+                    <table class="stats black">
+                        <colgroup><col/><col style="width:100px;"/><col style="width:100px;"/></colgroup>
+                        <tbody> 
+                            <tr><th>&nbsp;</th><th>Standard</th><th>Quick</th></tr>
+                            <tr>
+                                <td>Games played:</td>
+                                <td id="ot-standard-games" class="data-value"></td><td id="ot-quick-games" class="data-value"></td>
+                            </tr>
+                            <tr>
+                                <td>First game played:</td>
+                                <td id="ot-standard-first_game" class="data-value" data-format="days"></td>
+                                <td id="ot-quick-first_game" class="data-value" data-format="days"></td>
+                            </tr>
+                            <tr>
+                                <td>Time spend:</td>
+                                <td id="ot-standard-time" class="data-value" data-format="duration"></td>
+                                <td id="ot-quick-time" class="data-value" data-format="duration"></td>
+                            </tr>
+                            <tr>
+                                <td>Best score:</td>
+                                <td id="ot-standard-score" class="data-value"></td><td id="ot-quick-score" class="data-value"></td>
+                            </tr>
+                            <tr>
+                                <td>Highest level:</td>
+                                <td id="ot-standard-level" class="data-value"></td><td id="ot-quick-level" class="data-value"></td>
+                            </tr>
+                            <tr>
+                                <td>Max row clears:</td>
+                                <td id="ot-standard-lines" class="data-value"></td><td id="ot-quick-lines" class="data-value"></td>
+                            </tr>
+                            <tr>
+                                <td>Max 4-row combos:</td>
+                                <td id="ot-standard-lines_4" class="data-value"></td><td id="ot-quick-lines_4" class="data-value"></td>
+                            </tr>
+                        </tbody>    
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-
         <div id="footer">
             2023 &copy; <a href="https://github.com/tkoivula/">T. Koivula</a> <a href="https://github.com/tkoivula/tkoivula.github.io/">[Source code]</a>
         </div>
