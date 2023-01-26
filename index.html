@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <meta name="version" content="0.3.3"/>
         <title>Block game</title>
+        <script src="robot.js"></script>
         <script type = "text/javascript">
 const [ board_width, board_height ] = [ 10, 20 ];
 const block_size = 22;
@@ -21,7 +22,7 @@ const block_types = [
     { id: "L", shape: [ [-1, 0], [0, 0], [1, 0], [1, -1] ] },
     { id :"J", shape: [ [-1, -1], [-1, 0], [0, 0], [1, 0] ] }
 ];
-const action_keys = { p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72, q: 81, r: 82  }
+const action_keys = { a: 65, p: 80, space: 32, left: 37, right: 39, up: 38, down: 40, s: 83, w: 87, h: 72, q: 81, r: 82  }
 const debug = true;
 const refresh_rate = 1000 / 30; // 30 FPS
 const game_modes = {
@@ -40,6 +41,12 @@ const game = {
     current_piece: null,
     is_new_personal_best: null,
     main_loop_timer: null,
+    event_listeners: [],
+    animate: null,
+
+    add_event_listener: function(listener) {
+        game.event_listeners.push(listener);
+    },
     
     init: function() {
         game.states = { menu: {}, not_started: {}, play: {}, paused: {}, game_over: {} };
@@ -63,7 +70,8 @@ const game = {
         }
         game.states.menu.handlers = [
             { filter: (e) => [action_keys.s, "new_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("standard"); } },
-            { filter: (e) => [action_keys.q, "new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("quick"); } }
+            { filter: (e) => [action_keys.q, "new_quick_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("quick"); } },
+            { filter: (e) => [action_keys.a, "robot_game"].includes(e.key), screen: "play", action: function() { game.restart_new_game("standard", true, false); } }
         ];
         game.states.paused.handlers = [
             ...game.states.menu.handlers,
@@ -99,40 +107,51 @@ const game = {
         msg.log_json("WARN! None of the handlers matched for ", event);
     },
 
-    start_game: function(game_mode) {
+    start_game: function(game_mode, is_robot, animate) {
+        game.animate = animate;
         document.getElementById("main").dataset.game_mode = game_mode;
         document.getElementById("main").dataset.game_time = game_modes[game_mode].game_time;        
         msg.refresh_time();
         board.init();
         game.clear_hold_piece();
+        if (is_robot) robot.init();
         if (game_modes[game_mode].desc) msg.send([game_modes[game_mode].desc], "", 1000);
-        msg.send(["3", "2", "1"], "", 1000);
-        msg.send(["Play!"], "", 1000, () => {
+
+        const play = function() {
             msg.log("New game in mode ", game_mode);
             score_board.clear_current_stats(game_mode);
-            this.resume();
+            game.resume();
             game.is_new_personal_best = false;
             game.create_new_piece(true);
             game.state = game.states.play;
             game.main_loop_timer = window.setInterval(game.main_loop, refresh_rate);
-        }); 
+        };
+        if (animate) {
+            msg.send(["3", "2", "1"], "", 1000);
+            msg.send(["Play!"], "", 1000, play); 
+        } else play();
     },
 
-    restart_new_game: function(game_mode) {
+    restart_new_game: function(game_mode, robot = false, animate = true) {
         game.state = game.states.not_started;
         window.clearInterval(game.main_loop_timer); game.main_loop_timer = null;
         msg.timer_clear();
         msg.clear_messages();
-        game.start_game(game_mode);
+        game.event_listeners = [];
+        game.start_game(game_mode, robot, animate);
     },
 
-    pause: function() { msg.timer_off(); },
+    pause: function() {
+        msg.timer_off();
+        for (notify of game.event_listeners) notify(msg.state("game_off"));
+    },
 
     resume: function() {
         msg.timer_on();
         const remaining_time = msg.refresh_time();
         if (remaining_time > 0) msg.schedule_count_down(remaining_time, [120, 60, 10, 3, 2, 1], game.timeout);
         msg.log("Resume.");
+        for (notify of game.event_listeners) notify(msg.state("game_on"));
     },
 
     switch_hold_piece: function() {
@@ -178,6 +197,7 @@ const game = {
         this.next_piece = { geometry: geometries[1] };
         for (g of geometries) if (!g.original_shape) g.original_shape = [...g.shape];
         piece.draw_blocks(this.next_piece, document.getElementById("next-piece"), false, 0, 0, 0.75);
+        for (notify of game.event_listeners) notify(msg.state("new_piece"));
     },
 
     is_current_piece_in_valid_position: function() {
@@ -190,6 +210,7 @@ const game = {
         window.clearInterval(this.main_loop_timer); this.main_loop_timer = null;
         this.state = game.states.game_over;
         score_board.update_and_show_current_stats();
+        for (notify of game.event_listeners) notify(msg.state("game_over"));
         msg.send(["Game Over!"], "", 2000, () => {
             game.state = game.states.menu;
             this.switch_to_screen("menu");
@@ -207,7 +228,8 @@ const game = {
 
     clear_full_lines: function(lines) {
         lines.forEach((l) => board.remove_line(l));
-        board.animate_drop(this.current_piece, lines, 0, block_size_spaced, 4, refresh_rate);
+        const step = this.animate ? 4 : block_size_spaced;
+        board.animate_drop(this.current_piece, lines, 0, block_size_spaced, step, refresh_rate);
     },
 
     move_left_or_right: (dx) => piece.move_left_or_right(game.current_piece, dx < 0 ? -1 : dx > 0 ? 1 : 0),
@@ -261,6 +283,7 @@ const msg = {
         for (var i = 0; i < messages.length - 1; ++i) {
             this.queue.push({ message: messages[i], type, time });
         }
+        if (!game.animate) time = time / 10; // prevent queueing messages in fast play
         const last_entry = { message: messages[i], type, time, after_action };
         msg.queue.push(last_entry);
         return last_entry;
@@ -334,6 +357,18 @@ const msg = {
                     remaining - (t * 1000) - 1000));
         }
         this.timers.push(window.setTimeout(action, remaining));
+    },
+
+    state: function(type) {
+        var state = {};
+        if (type === "new_piece") {
+            const pos = board.position_in_matrix(game.current_piece.screen_x, game.current_piece.screen_y);
+            state = {
+                type, x: pos[0], y: pos[1], rotation: game.current_piece.rotation,
+                current_piece: game.current_piece, board: JSON.parse(JSON.stringify(board.matrix))
+            };
+        }
+        return { type, state };
     },
 
     log: debug ? (msg, v = "") => { console.log(msg + v); return v; } : (msg, v) => v,
@@ -450,13 +485,16 @@ const board = {
         }
     },
 
-    drop_above: function(y) {
-        for (var x = 1; x < this.matrix.length - 1; ++x) {
-            for (var yy = y - 1; yy > 0; --yy) {
-                var block2 = this.matrix[x][yy];
-                this.matrix[x][yy + 1] = block2;
+    drop_above: function(current_piece, lines) {
+        for (y of lines) {
+            for (var x = 1; x < this.matrix.length - 1; ++x) {
+                for (var yy = y - 1; yy > 0; --yy) {
+                    var block2 = this.matrix[x][yy];
+                    this.matrix[x][yy + 1] = block2;
+                }
             }
         }
+        piece.draw_shadow(current_piece);
     },
 
     animate_drop: function(current_piece, lines, current, total, step, delay) {
@@ -472,8 +510,7 @@ const board = {
         if (current < total) {
             setTimeout(() => board.animate_drop(current_piece, lines, current, total, step, delay), delay);
         } else {
-            lines.forEach((y) => board.drop_above(y));
-            piece.draw_shadow(current_piece);
+            board.drop_above(current_piece, lines);
         }
 
     },
@@ -509,7 +546,7 @@ const board = {
 const piece = {
 
     create_new: function(geometry, x, y) {
-        const piece = { geometry, screen_x: x, screen_y: y };
+        const piece = { geometry, screen_x: x, screen_y: y, rotation: 0 };
         piece.div = document.createElement( "div" );
         piece.div.className = "piece";
         piece.div.style.width = piece_size + "px";
@@ -554,13 +591,14 @@ const piece = {
         return false;
     },
 
-    rotate: function(piece, direction) {
+    rotate: function(piece, direction, draw = true) {
         const rotated = piece.geometry.shape.map(b => direction == -1 ? [b[1], -1 * b[0]] : [-1 * b[1], b[0]]);
         const can_rotate = this.can_rotate(piece, rotated);
         if (can_rotate) {
-            if (can_rotate.with_movement) this.move_and_draw(piece, can_rotate.with_movement, 0);
+            piece.rotation += direction;
+            if (draw) this.move_and_draw(piece, can_rotate.with_movement, 0);
             piece.geometry.shape = rotated;
-            this.draw_blocks(piece, piece.div);
+            if (draw) this.draw_blocks(piece, piece.div);
         }
     },
 
@@ -575,18 +613,22 @@ const piece = {
         return true;
     },
 
-    move_and_draw: function(piece, dx, dy) {
+    move_and_draw: function(piece, dx, dy, draw = true) {
         piece.screen_x += dx;
         piece.screen_y += dy;
-        piece.div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y) + "px";
-        piece.div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
-        if (dx != 0 && piece.shadow) this.draw_shadow(piece);
+        if (draw) {
+            piece.div.style.top = Math.floor(board.board_div.offsetTop + piece.screen_y + margin_y) + "px";
+            piece.div.style.left = (board.board_div.offsetLeft + piece.screen_x + margin_x) + "px";
+            if (dx != 0 && piece.shadow) this.draw_shadow(piece);
+        }
     },
 
-    move_left_or_right: function(piece, dx) {
+    move_left_or_right: function(piece, dx, draw = true) {
         if (this.can_move(piece, dx * block_size_spaced, 0)) {
-            this.move_and_draw(piece, dx * block_size_spaced, 0);
+            this.move_and_draw(piece, dx * block_size_spaced, 0, draw);
+            return true;
         }
+        return false;
     },
 
     move_down_at_most: function(piece, dy) {
@@ -715,7 +757,7 @@ const buttons_init = function() {
 
 const keyboard_init = function() {
     const press = function(pressed) {
-        //msg.log("Key press ", pressed.keyCode);
+        msg.log("Key press ", pressed.keyCode);
         if (Object.values(action_keys).indexOf(pressed.keyCode) < 0) return;
         pressed.preventDefault();
         game.handle_event({ class: "key_press", key: pressed.keyCode });
